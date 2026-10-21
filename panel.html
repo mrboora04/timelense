@@ -1,0 +1,83 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>TimeLens</title><link rel="stylesheet" href="styles.css"></head>
+<body class="panel">
+<header>
+  <div class="topbar">
+    <div class="brand"><img src="icons/i48.png" alt="">Time<span>Lens</span></div>
+    <div class="date" id="dateLine"></div>
+  </div>
+  <div id="mascot" class="mascot"></div>
+  <div class="card kpi">
+    <div class="kpi-row">
+      <div>
+        <div class="lbl">Browsed today</div>
+        <div class="total" id="todayTotal">0m</div>
+      </div>
+      <div id="spark" title="Last 7 days"></div>
+    </div>
+    <div class="trend" id="trend"></div>
+    <div class="sub" id="todaySub"></div>
+    <div class="stack" id="catStack"></div>
+    <div class="legend" id="catLegend"></div>
+  </div>
+</header>
+
+<section id="nowBox"></section>
+
+<section id="welcome" class="card welcome" hidden>
+  <b>TimeLens is running.</b>
+  <p>It counts time only while a website is in front of you and you're active, or a video or call is playing. Everything stays on this PC.</p>
+  <p>Browse for a few minutes and your categories, drifts and patterns will fill in here.</p>
+</section>
+
+<section>
+  <h2>Drift <span class="hint">· when you slid off track</span></h2>
+  <p id="driftSum" class="muted"></p>
+  <div class="path" id="pathStrip"></div>
+  <div class="pathlabels" id="pathLabels"></div>
+  <ol id="driftList" class="dtl"></ol>
+</section>
+
+<section>
+  <h2>Categories</h2>
+  <div id="catCards" class="cards"></div>
+  <div id="catEmpty" class="emptycats"></div>
+  <button id="addCat" class="ghost small">+ Add category</button>
+</section>
+
+<section>
+  <h2>Challenges <span class="hint">· one tap, tracked in background</span></h2>
+  <div id="challengeBox"></div>
+</section>
+
+<section>
+  <h2>Sites today <span class="hint">· tap a category to change it</span></h2>
+  <div id="siteRows"></div>
+</section>
+
+<section>
+  <h2>Patterns</h2>
+  <div id="insights" class="insights"></div>
+  <div id="charts">
+    <h3>Active hours today</h3>
+    <div id="hours" class="bars"></div><div class="blabels" id="hourLabels"></div>
+    <h3>Last 7 days</h3>
+    <div id="week" class="bars"></div><div class="blabels" id="weekLabels"></div>
+  </div>
+</section>
+
+<section>
+  <h2>History <span class="hint">· last 7 days, from Chrome history</span></h2>
+  <div id="histRows"></div>
+</section>
+
+<footer>
+  <button id="exportBtn" class="ghost">Export JSON</button>
+  <button id="resetBtn" class="danger">Reset all data</button>
+  <div class="tiny" id="ver"></div>
+</footer>
+
+<script src="lib.js"></script>
+<script src="ui.js"></script>
+<script src="panel.js"></script>
+</body></html>

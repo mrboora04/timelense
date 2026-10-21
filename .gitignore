@@ -1,0 +1,14 @@
+# personal data exported from the side panel
+timelens-export-*.json
+
+# editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# packaged builds
+*.zip
+*.crx
+*.pem
+node_modules/
