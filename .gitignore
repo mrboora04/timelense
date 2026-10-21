@@ -12,3 +12,6 @@ Thumbs.db
 *.crx
 *.pem
 node_modules/
+
+# build output
+dist/

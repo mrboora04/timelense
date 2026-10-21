@@ -4,7 +4,8 @@ const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
-const ROOT = path.join(__dirname, "..");
+/* TL_ROOT=dist runs the suite against the minified build */
+const ROOT = path.resolve(__dirname, "..", process.env.TL_ROOT || ".");
 const clone = x => (x === undefined ? x : JSON.parse(JSON.stringify(x)));
 
 function event() {

@@ -1,6 +1,8 @@
 # TimeLens
 
-A Chrome extension that tracks where your browsing time goes. It runs 100% locally: data lives in `chrome.storage` on your PC and is never sent anywhere.
+**See where your browsing time goes, and catch the moment you drift into doomscrolling.**
+
+TimeLens is a small Chrome extension (about 26 KB gzipped, no dependencies at runtime). It shows a live timer for the site you're on, sorts your day into categories, and draws a timeline of every time you slid from work into distraction, with Lens the mascot keeping you company. It runs 100% locally: data lives in `chrome.storage` on your PC and is never sent anywhere.
 
 - **Popup:** Lens the mascot, what's being tracked right now (with a live timer), today's total, a category breakdown and your top sites.
 - **Side panel:** a today card with change vs yesterday and a 7-day sparkline, drift timeline, categories with daily targets, one-tap challenges, every site visited today, patterns and 7-day history.
@@ -14,8 +16,15 @@ About 250 sites are built in, including popular Indian sites. Unknown sites are 
 
 ## Install (developer mode)
 1. Open `chrome://extensions` and turn on **Developer mode**.
-2. Click **Load unpacked** and pick this folder.
+2. Click **Load unpacked** and pick this folder, or the minified `dist/` folder (see Build).
 3. Pin TimeLens from the puzzle-piece menu. Requires Chrome 116 or later.
+
+## Build (minified)
+```bash
+npm install
+npm run build
+```
+This writes a minified copy to `dist/` (about 56 KB, down from 75 KB; 26 KB gzipped). Load `dist/` in Chrome, or zip its contents for the Chrome Web Store. The source stays readable; only `dist/` is minified. `npm run test:dist` builds and runs the test suite against `dist/`.
 
 ## How time is counted
 Time counts only while **a website is the active tab in the focused Chrome window** and you are **active**: input within the last 60 seconds, or the tab is playing sound (video, call). Switching to another app, locking the screen or going idle pauses the timer. The background worker saves the elapsed time every minute. A gap longer than 2 minutes (for example the PC slept) is capped instead of credited in full.
@@ -32,6 +41,7 @@ A **visit** is counted when you land on a different site or tab. Returning to th
 | `popup.html/js` | Toolbar popup |
 | `panel.html/js` | Side-panel dashboard |
 | `styles.css` | Styles for both |
+| `build.mjs` | Minified build into `dist/` |
 
 ## Data (in `chrome.storage.local`)
 - `v1`: `{ "YYYY-MM-DD": { domains: { "github.com": { s: seconds, v: visits } }, hours: [24 × seconds] } }`, last 30 days
@@ -42,6 +52,6 @@ Use **Export JSON** in the side panel to back it up.
 
 ## Tests
 ```bash
-node --test test/
+npm test
 ```
 The tests run `background.js` and `lib.js` against a fake `chrome` API (`test/fake-chrome.js`). Node 18+ needed; there are no dependencies.
