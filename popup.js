@@ -17,7 +17,7 @@ async function renderPopup() {
   renderStack($("pStack"), $("pLegend"), rollup(Object.entries(day.domains), cats), total, cats);
   const now = renderNow($("pNow"), tab, live, day, cats);
   liveBase = { ...now, total, at: Date.now() };
-  renderMascot($("pMascot"), mascotMood({ onSite: !!(tab && domainOf(tab.url)), tracking: now.tracking, total,
+  renderMascot($("pMascot"), mascotMood({ onSite: !!now.domain, tracking: now.tracking, total,
     drift: drift.ongoing, streak: drift.streak, why: live && live.why }));
 }
 

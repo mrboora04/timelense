@@ -49,14 +49,15 @@ function rollup(entries, cats) {
 
 /* ---------- category toggle + choices (delegated clicks) ---------- */
 const openPickers = new Set();
+function chipsHTML(domain, cat, cats, open = true) {
+  return `<div class="chips" role="group" aria-label="Category for ${esc(domain)}"${open ? "" : " hidden"}>${cats.list.map(c =>
+    `<button class="chip" data-domain="${esc(domain)}" data-cat="${esc(c)}" aria-pressed="${c === cat}"
+      style="--chip-color:${colorFor(c, cats)}">${esc(c)}</button>`).join("")}</div>`;
+}
 function catToggleHTML(key, domain, cat, cats) {
   const open = openPickers.has(key);
-  const chips = cats.list.map(c =>
-    `<button class="chip" data-domain="${esc(domain)}" data-cat="${esc(c)}" aria-pressed="${c === cat}"
-      style="--chip-color:${colorFor(c, cats)}">${esc(c)}</button>`).join("");
   return `<button class="choice" data-toggle="${esc(key)}" aria-expanded="${open}">
-      <i class="dot" style="background:${colorFor(cat, cats)}"></i>${esc(cat)}</button>
-    <div class="chips" role="group" aria-label="Category for ${esc(domain)}"${open ? "" : " hidden"}>${chips}</div>`;
+      <i class="dot" style="background:${colorFor(cat, cats)}"></i>${esc(cat)}</button>${chipsHTML(domain, cat, cats, open)}`;
 }
 document.addEventListener("click", async e => {
   const t = e.target.closest("[data-toggle], [data-cat]");
@@ -91,26 +92,31 @@ function driftState(trail, cats) {
 }
 
 /* The "now" row: site, live timers, category toggle. Returns the 1s ticker's snapshot.
+   It shows the site the worker is actually timing, which can be a tab in another window
+   than this panel's; only when nothing is being timed does it fall back to this tab.
    Timer digits are written by the ticker, so they're left out of the patched string. */
 function renderNow(box, tab, live, day, cats) {
-  const domain = tab ? domainOf(tab.url) : null;
+  const tracking = !!(live && live.tracking && live.domain);
+  const domain = tracking ? live.domain : tab ? domainOf(tab.url) : null;
   if (!domain) {
     patch(box, `<p class="now-empty">This tab isn't a website, so it isn't tracked.</p>`);
-    return { tracking: false };
+    return { tracking: false, domain: null };
   }
-  const tracking = !!(live && live.tracking && live.domain === domain);
   const visit = tracking ? live.visitMs / 1000 : 0;
   const site = (day.domains[domain] || { s: 0 }).s;
+  /* a site with a category just shows it; only an uncategorised one asks (change it under Sites) */
+  const cat = catFor(domain, cats), unsorted = cat === resolveCat("Other", cats);
   patch(box, `<div class="now"><img src="${favicon(domain)}" alt="">
      <div class="now-main"><b class="dom">${esc(domain)}</b>
        <span class="meta">${tracking
          ? `<span class="rec" aria-hidden="true"></span><span class="visitT"></span> this visit · <span class="siteT"></span> today`
          : `Paused — ${esc((live && live.why) || "waiting for activity")} · <span class="siteT"></span> today`}</span></div>
-     ${catToggleHTML("now", domain, catFor(domain, cats), cats)}</div>`);
+     ${unsorted ? "" : `<span class="cat-label"><i class="dot" style="background:${colorFor(cat, cats)}"></i>${esc(cat)}</span>`}</div>
+   ${unsorted ? `<div class="sort-prompt"><p class="meta">Which category is ${esc(domain)}?</p>${chipsHTML(domain, cat, cats)}</div>` : ""}`);
   const v = box.querySelector(".visitT"), s = box.querySelector(".siteT");
   if (v) v.textContent = clock(visit);
   if (s) s.textContent = fmt(site);
-  return { tracking, visit, site };
+  return { tracking, visit, site, domain };
 }
 
 /* Moves the live timers every second between refreshes (text only, no layout work). */

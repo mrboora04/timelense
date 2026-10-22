@@ -35,8 +35,17 @@
 </main>
 
 <footer class="foot">
-  <button id="exportBtn" class="quiet">Export data</button>
-  <button id="resetBtn" class="quiet danger">Delete all data</button>
+  <div id="footActions" class="foot-row">
+    <button id="exportBtn" class="quiet">Export data</button>
+    <button id="resetBtn" class="quiet danger">Delete all data</button>
+  </div>
+  <div id="resetConfirm" class="confirm" role="group" aria-labelledby="resetQ" hidden>
+    <p id="resetQ">Delete all TimeLens data? Your time, drifts and categories will be erased. This can't be undone.</p>
+    <div class="foot-row">
+      <button id="resetYes" class="quiet danger">Delete everything</button>
+      <button id="resetNo" class="quiet">Keep my data</button>
+    </div>
+  </div>
   <span id="ver" class="meta"></span>
 </footer>
 

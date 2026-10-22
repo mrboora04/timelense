@@ -33,7 +33,7 @@ async function render() {
   const drift = driftState(store.trail, cats);
   const now = renderNow($("nowBox"), tab, live, day, cats);
   liveBase = { ...now, total, at: Date.now() };
-  renderMascot($("mascot"), mascotMood({ onSite: !!(tab && domainOf(tab.url)), tracking: now.tracking, total,
+  renderMascot($("mascot"), mascotMood({ onSite: !!now.domain, tracking: now.tracking, total,
     drift: drift.ongoing, streak: drift.streak, why: live && live.why }));
   renderDriftList($("driftSum"), $("driftList"), $("driftMore"), drift.drifts);
   renderPath($("pathStrip"), $("pathLabels"), store.trail, cats);
@@ -44,32 +44,88 @@ async function render() {
         <span class="meta">${fmt(e.s)}</span>${catToggleHTML(`site:${dom}`, dom, catFor(dom, cats), cats)}</li>`).join("")
     : `<li class="meta">Nothing tracked yet today. Sites appear here as you browse.</li>`);
 
-  patch($("catRows"), [...cats.list].sort((a, b) => roll[b].s - roll[a].s).map(cat =>
-    `<li class="row${roll[cat].s ? "" : " is-empty"}"><i class="dot" style="background:${colorFor(cat, cats)}"></i>
-      <button class="quiet row-main" data-rename="${esc(cat)}" title="Rename">${esc(cat)}</button>
-      <span class="meta">${fmt(roll[cat].s)}</span></li>`).join(""));
-  catState = { cats, challenge: store.challenge };
+  catState = { cats, roll, challenge: store.challenge };
+  if (!editing) showCatRows();   // leave the list alone while you're typing in it
 }
 
-/* ---------- categories: rename / add ---------- */
-let catState = null;
-$("catRows").addEventListener("click", async e => {
+/* ---------- categories: rename / add, edited in place ---------- */
+const NEW_CAT = "\u0000new";
+let catState = null;             // { cats, roll, challenge } from the last render
+let editing = null;              // category being renamed, or NEW_CAT while adding one
+let draft = "", editError = "", committing = false;
+
+function editRowHTML(cat) {
+  const label = cat === NEW_CAT ? "New category name" : `Rename ${cat}`;
+  return `<li class="row is-editing">
+    <input class="inline-edit row-main" data-edit value="${esc(draft)}" maxlength="30" aria-label="${esc(label)}"
+      ${editError ? `aria-invalid="true" aria-describedby="catErr"` : ""}>
+    <span class="meta">Enter to save · Esc to cancel</span>
+    ${editError ? `<p id="catErr" class="field-error" role="alert">${esc(editError)}</p>` : ""}</li>`;
+}
+function showCatRows(focus = false) {
+  if (!catState) return;
+  const { cats, roll } = catState;
+  const rows = [...cats.list].sort((a, b) => (roll[b] || {}).s - (roll[a] || {}).s).map(cat => cat === editing ? editRowHTML(cat) :
+    `<li class="row${(roll[cat] || {}).s ? "" : " is-empty"}"><i class="dot" style="background:${colorFor(cat, cats)}"></i>
+      <button class="quiet row-main" data-rename="${esc(cat)}" aria-label="Rename ${esc(cat)}">${esc(cat)}</button>
+      <span class="meta">${fmt((roll[cat] || {}).s || 0)}</span></li>`);
+  if (editing === NEW_CAT) rows.push(editRowHTML(NEW_CAT));
+  const had = document.activeElement && document.activeElement.dataset.rename;   // keep keyboard focus across redraws
+  patch($("catRows"), rows.join(""));
+  if (had && !focus) {
+    const b = $("catRows").querySelector(`[data-rename="${CSS.escape(had)}"]`);
+    if (b && document.activeElement !== b) b.focus({ preventScroll: true });
+  }
+  $("addCat").hidden = editing === NEW_CAT;
+  if (focus) {
+    const input = $("catRows").querySelector("[data-edit]");
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+}
+function startEdit(cat) {
+  editing = cat; draft = cat === NEW_CAT ? "" : cat; editError = "";
+  showCatRows(true);
+}
+/* focus returns to the category's button (under its new name after a save) */
+function stopEdit(savedAs = null) {
+  const was = editing;
+  editing = null; editError = "";
+  showCatRows();
+  const name = savedAs || (was === NEW_CAT ? null : was);
+  const back = name ? $("catRows").querySelector(`[data-rename="${CSS.escape(name)}"]`) : $("addCat");
+  if (back) back.focus();
+}
+async function commitEdit(value) {
+  if (committing || !editing) return;
+  const name = value.trim(), was = editing, { cats, challenge } = catState;
+  if (!name || name === was) return stopEdit();
+  if (cats.list.includes(name)) {
+    draft = name;
+    editError = `There's already a category called "${name}". Try another name.`;
+    committing = true; showCatRows(true); committing = false;
+    return;
+  }
+  committing = true;
+  await chrome.storage.local.set(was === NEW_CAT ? { catList: [...cats.list, name] }
+                                                 : renameCategory(cats, {}, challenge, was, name));
+  committing = false;
+  catState.cats = await getCats();   // so the list redraws with the new name right away
+  stopEdit(name);
+}
+$("catRows").addEventListener("click", e => {
   const b = e.target.closest("[data-rename]");
-  if (!b || !catState) return;
-  const cat = b.dataset.rename, { cats, challenge } = catState;
-  const name = (prompt("Rename category:", cat) || "").trim();
-  if (!name || name === cat) return;
-  if (cats.list.includes(name)) { alert(`There's already a category called "${name}".`); return; }
-  await chrome.storage.local.set(renameCategory(cats, {}, challenge, cat, name));
+  if (b) startEdit(b.dataset.rename);
 });
-$("addCat").onclick = async () => {
-  const name = (prompt("New category name:") || "").trim();
-  if (!name) return;
-  const cats = await getCats();
-  if (cats.list.includes(name)) { alert(`There's already a category called "${name}".`); return; }
-  cats.list.push(name);
-  await chrome.storage.local.set({ catList: cats.list });
-};
+$("catRows").addEventListener("keydown", e => {
+  if (!e.target.matches("[data-edit]")) return;
+  if (e.key === "Enter") { e.preventDefault(); commitEdit(e.target.value); }
+  if (e.key === "Escape") { e.preventDefault(); stopEdit(); }
+});
+$("catRows").addEventListener("focusout", e => {   // clicking away saves, like most inline editors
+  if (e.target.matches("[data-edit]") && !committing) commitEdit(e.target.value);
+});
+$("addCat").onclick = () => startEdit(NEW_CAT);
 $("exportBtn").onclick = async () => {
   const d = await chrome.storage.local.get(null);
   const blob = new Blob([JSON.stringify(d, null, 2)], { type: "application/json" });
@@ -78,9 +134,18 @@ $("exportBtn").onclick = async () => {
   a.download = `timelens-export-${dayKey()}.json`; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 };
-$("resetBtn").onclick = async () => {
-  if (confirm("Delete all TimeLens data? Your time, drifts and categories will be erased. This can't be undone."))
-    await chrome.storage.local.clear();
+/* delete-all asks in place; "Keep my data" gets focus, so Enter is the safe choice */
+function askReset(open) {
+  $("footActions").hidden = open;
+  $("resetConfirm").hidden = !open;
+  (open ? $("resetNo") : $("resetBtn")).focus();
+}
+$("resetBtn").onclick = () => askReset(true);
+$("resetNo").onclick = () => askReset(false);
+$("resetConfirm").addEventListener("keydown", e => { if (e.key === "Escape") askReset(false); });
+$("resetYes").onclick = async () => {
+  await chrome.storage.local.clear();
+  askReset(false);
 };
 $("ver").textContent = `Stays on this PC · v${chrome.runtime.getManifest().version}`;
 
