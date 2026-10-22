@@ -165,9 +165,9 @@ chrome.alarms.get("tick").then(a => { if (!a) chrome.alarms.create("tick", { per
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg && msg.type === "getLive") {
     getSession().then(cur => {
-      if (!cur) return sendResponse(null);
+      if (!cur) return sendResponse({ build: TL_BUILD, tracking: false, domain: null });
       const elapsed = cur.start ? Math.min(Date.now() - cur.start, MAX_CREDIT_MS) : 0;
-      sendResponse({ domain: cur.domain, tracking: !!cur.start, elapsed,
+      sendResponse({ build: TL_BUILD, domain: cur.domain, tracking: !!cur.start, elapsed,
                      visitMs: (cur.visitMs || 0) + elapsed, why: cur.start ? null : cur.why || null });
     });
     return true;

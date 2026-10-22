@@ -59,6 +59,10 @@ function guessCat(domain) {
   return rule ? rule[1] : null;
 }
 const CAT_KEYS = ["catList", "catMap", "catAlias"];
+/* Bump with every change. Chrome reloads the dashboard's files from disk on their own, but
+   keeps running the old background worker until the extension is reloaded; the pages
+   compare this number with the worker's to notice that and offer a reload. */
+const TL_BUILD = 141;
 
 const pad = n => String(n).padStart(2, "0");
 function dayKey(d = new Date()) {
@@ -116,7 +120,8 @@ function catFor(domain, cats) {
   return resolveCat(guessCat(domain) || "Other", cats);
 }
 
-/* { domain, tracking, elapsed: ms not yet saved, visitMs: ms on this visit so far } or null */
+/* { build, domain, tracking, elapsed: ms not yet saved, visitMs: ms on this visit so far, why }
+   or null when the worker didn't answer */
 async function getLive() {
   try { return await chrome.runtime.sendMessage({ type: "getLive" }); } catch { return null; }
 }
@@ -129,6 +134,10 @@ function addLive(day, live) {
     day.hours[new Date().getHours()] += s;
   }
   return day;
+}
+/* true when the running worker is missing or older than these files */
+function workerStale(live) {
+  return !live || live.build !== TL_BUILD;
 }
 function daySeconds(day) {
   return day ? Object.values(day.domains).reduce((a, e) => a + e.s, 0) : 0;

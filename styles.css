@@ -173,6 +173,8 @@ details[open] summary::after{content:"–"}
 .foot{display:grid;gap:var(--spacing-xs)}
 .foot-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--spacing-xs) var(--spacing-lg)}
 .confirm p{font-size:var(--font-size-sm)}
+.notice{display:grid;gap:var(--spacing-sm);padding:var(--spacing-md);border:var(--border-width-thin) solid var(--color-warning);
+  border-radius:var(--radius-md);font-size:var(--font-size-sm)}
 
 /* ---------- inline editing ---------- */
 .inline-edit{min-block-size:var(--target-min);padding-inline:var(--spacing-md);font:inherit;color:var(--color-text);

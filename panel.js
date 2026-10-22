@@ -12,11 +12,16 @@ function vsYesterday(v, total) {
   return ySoFar >= 60 ? total - ySoFar : null;
 }
 
+/* old background worker still running after an update: say so, and reload in one click */
+function showStale(live) { $("staleNote").hidden = !workerStale(live); }
+$("reloadBtn").onclick = () => chrome.runtime.reload();
+
 async function render() {
   const store = await chrome.storage.local.get(["v1", "challenge", "trail", ...CAT_KEYS]);
   const v = store.v1 || {};
   const cats = catsFrom(store);
   const [live, tab] = await Promise.all([getLive(), activeTab()]);
+  showStale(live);
   const day = v[dayKey()] = addLive(v[dayKey()] || blankDay(), live);
   const entries = Object.entries(day.domains).sort((a, b) => b[1].s - a[1].s);
   const total = daySeconds(day);

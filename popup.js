@@ -5,10 +5,15 @@ let liveBase = null;
    keyboard focus, which would otherwise look like you switched to another app. */
 chrome.runtime.connect({ name: "popup" });
 
+/* old background worker still running after an update: say so, and reload in one click */
+function showStale(live) { $("staleNote").hidden = !workerStale(live); }
+$("reloadBtn").onclick = () => chrome.runtime.reload();
+
 async function renderPopup() {
   const store = await chrome.storage.local.get(["v1", "trail", ...CAT_KEYS]);
   const cats = catsFrom(store);
   const [live, tab] = await Promise.all([getLive(), activeTab()]);
+  showStale(live);
   const day = addLive((store.v1 || {})[dayKey()] || blankDay(), live);
   const total = daySeconds(day);
   const drift = driftState(store.trail, cats);

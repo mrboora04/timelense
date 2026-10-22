@@ -162,6 +162,20 @@ test("a pause records why, for the UI", async () => {
   assert.equal((await wk.live()).why, "this tab isn't a website");
 });
 
+test("the worker reports its build, so the pages can spot an outdated worker", async () => {
+  const { loadLib } = require("./fake-chrome");
+  const L = loadLib();
+  const w = makeWorld();
+  w.focused = false;                       // nothing tracked yet: still answers with its build
+  const wk = bootWorker(w);
+  await settle();
+  const live = await wk.live();
+  assert.equal(live.build, L.TL_BUILD);
+  assert.equal(L.workerStale(live), false);
+  assert.equal(L.workerStale(null), true);                    // no answer at all
+  assert.equal(L.workerStale({ tracking: true }), true);      // a worker from before builds existed
+});
+
 test("the tick alarm is created once across worker restarts", async () => {
   const w = makeWorld();
   bootWorker(w); await settle();

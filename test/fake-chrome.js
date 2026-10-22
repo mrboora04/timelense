@@ -106,7 +106,7 @@ function loadLib() {
   run(ctx, "lib.js");
   return vm.runInContext(
     `({ catFor, catsFrom, resolveCat, renameCategory, fmt, clock, esc, addLive, blankDay, domainOf, dayKey,
-        BUILTIN_CATS, guessCat, findDrifts, trailEntries, mascotMood })`, ctx);
+        BUILTIN_CATS, guessCat, findDrifts, trailEntries, mascotMood, workerStale, TL_BUILD })`, ctx);
 }
 
 /* lets every pending promise chain in the worker finish */
