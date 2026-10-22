@@ -63,7 +63,7 @@ function makeChrome(world, ev) {
       create: (n, o) => { world.alarms[n] = o; world.alarmCreates++; },
       onAlarm: ev.alarm,
     },
-    runtime: { onStartup: ev.startup, onMessage: ev.msg, getURL: p => "chrome-extension://test" + p },
+    runtime: { onStartup: ev.startup, onMessage: ev.msg, onConnect: ev.connect, getURL: p => "chrome-extension://test" + p },
   };
 }
 
@@ -83,13 +83,19 @@ function run(ctx, file) {
 /* Starts a fresh worker over the same world, like Chrome waking a suspended service worker. */
 function bootWorker(world) {
   const ev = Object.fromEntries(
-    ["tabsAct", "tabsUpd", "tabsRem", "focus", "idle", "startup", "alarm", "msg"].map(k => [k, event()]));
+    ["tabsAct", "tabsUpd", "tabsRem", "focus", "idle", "startup", "alarm", "msg", "connect"].map(k => [k, event()]));
   const ctx = context(world, makeChrome(world, ev));
   run(ctx, "background.js");
   return {
     ev,
     tick: () => ev.alarm.fire({ name: "tick" }),
     live: () => new Promise(r => ev.msg.fire({ type: "getLive" }, {}, r)),
+    /* opens the toolbar popup's port; returns a function that closes it */
+    openPopup: () => {
+      const disc = event();
+      ev.connect.fire({ name: "popup", onDisconnect: disc });
+      return () => disc.fire();
+    },
   };
 }
 

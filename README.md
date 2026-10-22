@@ -5,7 +5,7 @@
 TimeLens is a small Chrome extension (about 26 KB gzipped, no dependencies at runtime). It shows a live timer for the site you're on, sorts your day into categories, and draws a timeline of every time you slid from work into distraction, with Lens the mascot keeping you company. It runs 100% locally: data lives in `chrome.storage` on your PC and is never sent anywhere.
 
 - **Popup:** Lens the mascot, today's total, a category breakdown and the site you're on, with a live timer.
-- **Side panel:** a today card with change vs yesterday and a 7-day sparkline, drift timeline, categories with daily targets, one-tap challenges, every site visited today, patterns and 7-day history.
+- **Side panel:** today's total with the change vs yesterday, the site you're on, your drift timeline, and (collapsed) every site today and your categories.
 - **Lens:** a small mascot whose face and message follow your state: waving, happy, proud of a focus streak, curious when you wander, worried when you're doomscrolling, asleep when paused.
 
 ## Design
@@ -51,7 +51,7 @@ A **visit** is counted when you land on a different site or tab. Returning to th
 ## Data (in `chrome.storage.local`)
 - `v1`: `{ "YYYY-MM-DD": { domains: { "github.com": { s: seconds, v: visits } }, hours: [24 × seconds] } }`, last 30 days
 - `trail`: `{ "YYYY-MM-DD": [{ d: "github.com" or null (paused), t: ms }] }`, last 2 days, for drift detection
-- `catList`, `catMap` (your per-site picks), `catAlias` (category renames), `targets`, `challenge`, `seen`
+- `catList`, `catMap` (your per-site picks), `catAlias` (category renames), `seen`
 
 Use **Export JSON** in the side panel to back it up.
 

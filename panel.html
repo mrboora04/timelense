@@ -1,16 +1,12 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>TimeLens</title><link rel="stylesheet" href="styles.css"></head>
 <body class="panel">
-<!-- Stat-Led (designing-layouts/structural-variety): the number first, then now + drift;
-     everything else collapsed (guiding-users: progressive disclosure). -->
+<!-- Stat-Led: the number first, then now + drift; sites and categories collapsed. -->
 <header id="mascot" class="lens-line"></header>
 
 <main>
   <section class="hero" aria-labelledby="todayLabel">
-    <div class="hero-top">
-      <h1 id="todayLabel" class="eyebrow">Browsed today</h1>
-      <div id="spark"></div>
-    </div>
+    <h1 id="todayLabel" class="eyebrow">Browsed today</h1>
     <p class="display" id="todayTotal">0m</p>
     <p class="meta" id="trend"></p>
     <div class="stack" id="catStack"></div>
@@ -32,25 +28,9 @@
     <ul id="siteRows" class="rows"></ul>
   </details>
   <details class="more">
-    <summary>Categories &amp; targets</summary>
+    <summary>Categories</summary>
     <ul id="catRows" class="rows"></ul>
     <button id="addCat" class="quiet">Add a category</button>
-  </details>
-  <details class="more">
-    <summary>Challenges <span class="meta" id="challengeState"></span></summary>
-    <div id="challengeBox"></div>
-  </details>
-  <details class="more">
-    <summary>Patterns</summary>
-    <ul id="insights" class="insights"></ul>
-    <h3 class="eyebrow">Active hours today</h3>
-    <div id="hours" class="bars"></div><div class="bar-labels" id="hourLabels"></div>
-    <h3 class="eyebrow">Last 7 days</h3>
-    <div id="week" class="bars"></div><div class="bar-labels" id="weekLabels"></div>
-  </details>
-  <details class="more">
-    <summary>History <span class="meta">last 7 days</span></summary>
-    <ul id="histRows" class="rows"></ul>
   </details>
 </main>
 

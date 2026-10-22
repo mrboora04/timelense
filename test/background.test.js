@@ -136,6 +136,32 @@ test("after Chrome restarts, a trail left open is closed where counting stopped"
   assert.equal(entries[1].t, stoppedAt);
 });
 
+test("opening the toolbar popup doesn't pause tracking", async () => {
+  const w = makeWorld();
+  const wk = bootWorker(w);
+  await settle();
+  /* Windows: the popup takes keyboard focus, so Chrome reports no focused window */
+  w.focused = false; wk.ev.focus.fire(-1);
+  const close = wk.openPopup(); await settle();
+  w.now += MIN; wk.tick(); await settle();
+  assert.equal(stats(w, "github.com").s, 60);
+  assert.equal((await wk.live()).tracking, true);
+  close(); await settle();               // popup closed and Chrome still not in front: pause
+  assert.equal((await wk.live()).tracking, false);
+});
+
+test("a pause records why, for the UI", async () => {
+  const w = makeWorld();
+  const wk = bootWorker(w);
+  await settle();
+  w.focused = false; wk.ev.focus.fire(-1); await settle();
+  assert.equal((await wk.live()).why, "Chrome isn't the window in front");
+  w.focused = true; w.idle = "idle"; wk.ev.idle.fire("idle"); await settle();
+  assert.equal((await wk.live()).why, "no activity for a minute");
+  w.idle = "active"; w.tabs[0].url = "chrome://newtab/"; wk.ev.tabsUpd.fire(1, { url: w.tabs[0].url }, w.tabs[0]); await settle();
+  assert.equal((await wk.live()).why, "this tab isn't a website");
+});
+
 test("the tick alarm is created once across worker restarts", async () => {
   const w = makeWorld();
   bootWorker(w); await settle();

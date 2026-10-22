@@ -79,14 +79,24 @@ function serial(fn) {
   return run;
 }
 
+/* The toolbar popup takes keyboard focus on Windows, so Chrome reports no focused window
+   while it's open. The popup keeps a port open; while it does, Chrome counts as in front. */
+let popupOpen = 0;
+chrome.runtime.onConnect.addListener(port => {
+  if (port.name !== "popup") return;
+  popupOpen++;
+  resync();
+  port.onDisconnect.addListener(() => { popupOpen--; resync(); });
+});
+
 const DEVTOOLS = "devtools";
 /* The active tab of the focused Chrome window; null when another app is in front or the
    window is incognito (never recorded); DEVTOOLS when an undocked DevTools window is focused. */
 async function focusedTab() {
   const w = await chrome.windows.getLastFocused({ populate: true, windowTypes: ["normal", "popup", "devtools"] })
     .catch(() => null);
-  if (!w || !w.focused || w.incognito) return null;
-  if (w.type === "devtools") return DEVTOOLS;
+  if (!w || w.incognito || (!w.focused && !popupOpen)) return null;
+  if (w.type === "devtools") return w.focused ? DEVTOOLS : null;
   return (w.tabs || []).find(t => t.active) || null;
 }
 
@@ -101,6 +111,10 @@ async function sync() {
   /* videos and calls produce no keyboard/mouse input, so an audible tab still counts */
   const present = state === "active" || (state === "idle" && tab && tab.audible);
   const domain = present && tab ? domainOf(tab.url) : null;
+  /* shown in the UI while paused, so a pause is never a mystery */
+  const why = !tab ? "Chrome isn't the window in front"
+    : !present ? (state === "locked" ? "screen locked" : "no activity for a minute")
+    : !domain ? "this tab isn't a website" : null;
   const cur = await getSession();
   const now = Date.now();
   const same = cur && tab && cur.tabId === tab.id && cur.domain === domain;
@@ -119,7 +133,8 @@ async function sync() {
   const credited = await record(ops, mark, cur === null);
 
   if (domain) await setSession({ tabId: tab.id, domain, start: now, visitMs: same ? cur.visitMs || 0 : 0 });
-  else if (cur && cur.start) await setSession({ ...cur, start: null, visitMs: (cur.visitMs || 0) + credited[0] * 1000 });
+  else if (cur && cur.start) await setSession({ ...cur, start: null, visitMs: (cur.visitMs || 0) + credited[0] * 1000, why });
+  else if (!cur || cur.why !== why) await setSession({ ...(cur || {}), start: null, why });
 }
 
 /* periodic commit: every 60s the worker wakes, re-checks what's in front, banks elapsed time */
@@ -153,7 +168,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (!cur) return sendResponse(null);
       const elapsed = cur.start ? Math.min(Date.now() - cur.start, MAX_CREDIT_MS) : 0;
       sendResponse({ domain: cur.domain, tracking: !!cur.start, elapsed,
-                     visitMs: (cur.visitMs || 0) + elapsed });
+                     visitMs: (cur.visitMs || 0) + elapsed, why: cur.start ? null : cur.why || null });
     });
     return true;
   }

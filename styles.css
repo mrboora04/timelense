@@ -55,7 +55,8 @@
   --lens-glass:var(--grey-950); --lens-eye:var(--grey-50); --lens-pupil:var(--grey-950); --lens-line:var(--grey-50);
   --lens-spark:var(--color-warning); --lens-drop:var(--grey-400); --lens-z:var(--color-text-muted);
   --lens-handle-width:7;  --lens-line-width:2.2;
-  --popup-width:340px; --spark-width:84px;
+  --popup-width:340px;
+
 }
 @media (prefers-reduced-motion: reduce){
   :root{ --duration-fast:0ms; --duration-normal:0ms; }
@@ -99,16 +100,12 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 
 /* ---------- hero: the number first ---------- */
 .hero{display:grid;gap:var(--spacing-xs)}
-.hero-top{display:flex;align-items:center;justify-content:space-between;gap:var(--spacing-md)}
 .display{font-size:var(--font-size-display);font-weight:var(--font-weight-heavy);line-height:var(--line-height-tight);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .pop .display{font-size:var(--font-size-display-sm)}
 .stack{display:flex;gap:var(--spacing-xxs);block-size:var(--spacing-sm);margin-block-start:var(--spacing-sm);border-radius:var(--radius-full);overflow:hidden;background:var(--chart-track)}
 .stack i{display:block}
 .legend{display:flex;flex-wrap:wrap;gap:var(--spacing-xs) var(--spacing-md);font-size:var(--font-size-sm);color:var(--color-text-muted)}
 .legend span{display:inline-flex;align-items:center;gap:var(--spacing-xs)}
-.spark{inline-size:var(--spark-width);block-size:var(--spacing-xl);overflow:visible}
-.spark polyline{fill:none;stroke:var(--color-accent);stroke-width:var(--border-width-medium);stroke-linejoin:round;stroke-linecap:round}
-.spark circle{fill:var(--color-accent)}
 
 /* ---------- now row ---------- */
 .now{display:flex;align-items:center;gap:var(--spacing-md);min-block-size:var(--target-min)}
@@ -155,7 +152,6 @@ details summary::after{content:"+";margin-inline-start:auto;color:var(--color-te
 details[open] summary::after{content:"–"}
 .more{border-block-start:var(--border-width-thin) solid var(--row-divider)}
 .more[open]{padding-block-end:var(--spacing-md)}
-.more .eyebrow{margin-block:var(--spacing-lg) var(--spacing-sm)}
 
 /* rows */
 .rows{display:grid}
@@ -163,36 +159,13 @@ details[open] summary::after{content:"–"}
   padding-block:var(--spacing-xs);border-block-end:var(--border-width-thin) solid var(--row-divider);inline-size:100%;text-align:start}
 .row-main{flex:1;min-inline-size:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .row .meta{white-space:nowrap;font-variant-numeric:tabular-nums}
-.cat-row.is-empty{color:var(--color-text-muted)}
-.progress{flex-basis:100%;block-size:var(--spacing-xs);border-radius:var(--radius-full);overflow:hidden;background:var(--chart-track)}
-.progress i{display:block;block-size:100%;background:var(--color-accent)}
-.progress.is-over i{background:var(--color-danger)}
-.preset{display:flex}
-.preset .meta{white-space:normal}
-
-/* patterns */
-.insights{display:grid;gap:var(--spacing-sm)}
-.insights b{color:var(--color-accent);font-weight:var(--font-weight-semibold)}
-.bars{display:flex;align-items:flex-end;gap:var(--spacing-xxs);block-size:var(--spacing-2xl)}
-.bars div{flex:1;background:var(--color-accent);border-radius:var(--radius-sm) var(--radius-sm) 0 0;opacity:.6}
-.bars .is-empty{background:var(--color-border)}
-.bars .is-current{opacity:1}
-.bar-labels{display:flex;gap:var(--spacing-xxs);font-size:var(--font-size-xs);color:var(--color-text-muted)}
-.bar-labels span{flex:1;text-align:center}
-
-/* challenge days */
-.days{display:flex;gap:var(--spacing-xs);margin-block:var(--spacing-sm)}
-.day{flex:1;block-size:var(--spacing-sm);border-radius:var(--radius-full);background:var(--color-border)}
-.day.is-passed{background:var(--color-success)}
-.day.is-missed{background:var(--color-danger)}
-.day.is-today{background:var(--color-accent)}
+.row.is-empty{color:var(--color-text-muted)}
 
 /* ---------- buttons: primary, quiet ---------- */
 .primary{min-block-size:var(--target-min);padding-inline:var(--spacing-lg);border-radius:var(--radius-md);
   background:var(--button-bg-primary);color:var(--button-text-primary);font-weight:var(--font-weight-bold)}
 .quiet{min-block-size:var(--target-min);color:var(--button-text-quiet);font-weight:var(--font-weight-semibold);text-align:start}
 .quiet.row-main{color:inherit}
-.quiet.small{font-size:var(--font-size-sm)}
 .quiet.danger{color:var(--color-danger)}
 .primary:hover,.quiet:hover{filter:brightness(1.15)}
 .foot{display:flex;flex-wrap:wrap;align-items:center;gap:var(--spacing-xs) var(--spacing-lg)}

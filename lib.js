@@ -208,9 +208,9 @@ function timeOf(ms) {
   return new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 /* What Lens (the mascot) looks like and says. Plain text; the UI escapes it. */
-function mascotMood({ onSite, tracking, total, drift, streak }) {
+function mascotMood({ onSite, tracking, total, drift, streak, why }) {
   if (!onSite) return { mood: "happy", text: "Open a website and I'll start counting." };
-  if (!tracking) return { mood: "sleep", text: "Paused, no activity. I'll wait right here." };
+  if (!tracking) return { mood: "sleep", text: `Paused: ${why || "waiting for activity"}. I'll wait right here.` };
   if (drift && !drift.from) {
     return { mood: "worried", text: `${fmt(drift.secs)} of scrolling on ${drift.sites.slice(-2).join(", ")}. Break time?` };
   }
