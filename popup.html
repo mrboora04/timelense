@@ -1,23 +1,19 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>TimeLens</title><link rel="stylesheet" href="styles.css"></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>TimeLens</title><link rel="stylesheet" href="styles.css"></head>
 <body class="pop">
-  <div class="brand"><img src="icons/i48.png" alt="">Time<span>Lens</span></div>
-  <div id="pMascot" class="mascot small"></div>
-  <div id="pNow"></div>
-  <div class="card kpi">
-    <div class="kpi-row">
-      <div>
-        <div class="lbl">Browsed today</div>
-        <div class="big" id="pTotal">…</div>
-      </div>
-      <div class="sub" id="pSub"></div>
-    </div>
-    <div class="stack" id="pStack"></div>
-    <div class="legend" id="pLegend"></div>
-  </div>
-  <div id="pTop"></div>
-  <button id="openPanel">Open full dashboard</button>
+  <header id="pMascot" class="lens-line"></header>
+  <main>
+    <section class="hero" aria-labelledby="pLabel">
+      <h1 id="pLabel" class="eyebrow">Browsed today</h1>
+      <p class="display" id="pTotal">…</p>
+      <div class="stack" id="pStack"></div>
+      <p class="legend" id="pLegend"></p>
+    </section>
+    <section id="pNow" aria-label="Current site"></section>
+  </main>
+  <button id="openPanel" class="primary">Open dashboard</button>
 <script src="lib.js"></script>
+<script src="lens.js"></script>
 <script src="ui.js"></script>
 <script src="popup.js"></script>
 </body></html>

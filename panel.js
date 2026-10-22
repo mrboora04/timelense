@@ -1,12 +1,7 @@
 /* TimeLens side-panel dashboard. Reads chrome.storage.local only. */
 const HISTORY_TTL = 60 * 1000;
-let openPicker = null;   // domain whose category buttons are expanded in "Sites today"
 let liveBase = null;     // snapshot for the 1s live ticker
 
-function dayLabel(ds) {
-  const [y,m,dd] = ds.split("-").map(Number);
-  return new Date(y, m-1, dd).toLocaleDateString(undefined, { weekday:"short", month:"short", day:"numeric" });
-}
 /* n day keys ending `skip` days ago, oldest first */
 function lastNDays(n, skip = 0) {
   const out = [];
@@ -39,140 +34,105 @@ async function render() {
   const targets = store.targets || {};
   const [live, tab] = await Promise.all([getLive(), activeTab()]);
   const day = v[dayKey()] = addLive(v[dayKey()] || blankDay(), live);
-  const entries = Object.entries(day.domains).sort((a,b) => b[1].s - a[1].s);
+  const entries = Object.entries(day.domains).sort((a, b) => b[1].s - a[1].s);
   const total = daySeconds(day);
-  const visits = entries.reduce((a,[,e]) => a + e.v, 0);
+  const visits = entries.reduce((a, [, e]) => a + e.v, 0);
   const roll = rollup(entries, cats);
-  const firstDay = Object.keys(v).length <= 1 && total < 5 * 60;
 
-  $("dateLine").textContent =
-    new Date().toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric" });
+  /* hero: the number first (creating-dashboards KPI: value, change vs comparison, sparkline) */
   $("todayTotal").textContent = fmt(total);
-  $("todaySub").textContent = entries.length
-    ? `${plural(entries.length, "site")} · ${plural(visits, "visit")}` : "Nothing tracked yet today";
   const diff = vsYesterday(v, total);
-  $("trend").innerHTML = diff === null ? ""
-    : `<span class="${diff > 0 ? "up" : "down"}">${diff > 0 ? "▲" : "▼"} ${fmt(Math.abs(diff))}</span> vs yesterday at this time`;
-  $("spark").innerHTML = sparkline(lastNDays(7).map(k => daySeconds(v[k])));
+  $("trend").textContent = diff === null
+    ? (entries.length ? `${plural(entries.length, "site")} · ${plural(visits, "visit")}` : "Nothing tracked yet today.")
+    : `${diff > 0 ? "↑" : "↓"} ${fmt(Math.abs(diff))} ${diff > 0 ? "more" : "less"} than yesterday at this time`;
+  const week = lastNDays(7);
+  $("spark").innerHTML = sparkline(week.map(k => daySeconds(v[k])), week);
   renderStack($("catStack"), $("catLegend"), roll, total, cats);
 
   const drift = driftState(store.trail, cats);
-  const now = renderNow($("nowBox"), tab, live, day, cats, { drift: drift.ongoing });
+  const now = renderNow($("nowBox"), tab, live, day, cats);
   liveBase = { ...now, total, at: Date.now() };
   renderMascot($("mascot"), mascotMood({
     onSite: !!(tab && domainOf(tab.url)), tracking: now.tracking, total, drift: drift.ongoing, streak: drift.streak }));
-  $("welcome").hidden = !firstDay;
-  renderDriftList($("driftSum"), $("driftList"), drift.drifts);
+  renderDriftList($("driftSum"), $("driftList"), $("driftMore"), drift.drifts);
   renderPath($("pathStrip"), $("pathLabels"), store.trail, cats);
 
+  renderSites(entries, cats);
   renderCats(roll, total, cats, targets, store.challenge);
   renderChallenges(v, cats, store.challenge);
-  renderSites(entries, cats);
-  renderPatterns(v, day, entries, roll, total, visits, targets);
+  renderPatterns(v, day, roll, total, visits, targets);
   await renderHistory(v);
 }
 
-/* ---------- categories ---------- */
-function renderCats(roll, total, cats, targets, challenge) {
-  const cc = $("catCards"), empty = $("catEmpty");
-  cc.innerHTML = "";
-  const shown = cats.list.filter(c => roll[c].s > 0 || targets[c])
-    .sort((a, b) => roll[b].s - roll[a].s);
-  const idle = cats.list.filter(c => !shown.includes(c));
-  shown.forEach(cat => cc.appendChild(catCard(cat, roll[cat], total, cats, targets, challenge)));
-  /* empty categories as one quiet line instead of a stack of "0s" cards */
-  empty.innerHTML = "";
-  if (idle.length) {
-    empty.appendChild(el("span", "muted", shown.length ? "No time yet: " : "Your categories: "));
-    idle.forEach(cat => {
-      const b = el("button", "linkish", esc(cat));
-      b.title = "Click to rename";
-      b.dataset.k = `cat:${cat}`;
-      b.onclick = () => renameCat(cat, cats, targets, challenge);
-      empty.appendChild(b);
-    });
+/* ---------- sites ---------- */
+function renderSites(entries, cats) {
+  const list = $("siteRows");
+  $("sitesCount").textContent = entries.length ? `${entries.length} today` : "";
+  list.innerHTML = entries.length ? "" : `<li class="meta">Nothing tracked yet today. Sites appear here as you browse.</li>`;
+  for (const [dom, e] of entries) {
+    const li = el("li", "row",
+      `<img src="${favicon(dom)}" alt=""><span class="row-main">${esc(dom)}</span>
+       <span class="meta">${fmt(e.s)} · ${plural(e.v, "visit")}</span>`);
+    const [btn, picker] = catToggle(`site:${dom}`, dom, catFor(dom, cats), cats);
+    li.append(btn, picker);   // picker wraps onto its own line inside the row
+    list.appendChild(li);
   }
 }
-function catCard(cat, r, total, cats, targets, challenge) {
-  const col = colorFor(cat, cats);
-  const share = total ? Math.round(r.s / total * 100) : 0;
-  const top = r.sites.sort((a,b) => b[1].s - a[1].s).slice(0,3)
-    .map(([d,e]) => `${esc(d)} ${fmt(e.s)}`).join(" · ");
-  const card = el("div", "card");
-  let bar, tgt;
-  if (targets[cat]) {
-    const pct = Math.round(r.s / targets[cat] * 100);
-    bar = `<div class="bar"><i style="width:${Math.min(100, pct)}%;background:${pct > 100 ? "#f87171" : col}"></i></div>`;
-    tgt = `<div class="tgt">daily target <input type="number" min="0" value="${Math.round(targets[cat]/60)}"> min · ${pct}%</div>`;
-  } else {
-    bar = `<div class="bar"><i style="width:${share}%;background:${col}"></i></div>`;
-    tgt = `<div class="tgt">${share}% of today · <a href="#" class="setT" style="color:${col}">set a daily target</a></div>`;
-  }
-  card.innerHTML =
-    `<div class="row1"><span class="dot" style="background:${col}"></span>` +
-    `<span class="name" title="Click to rename">${esc(cat)}</span>` +
-    `<span class="time">${fmt(r.s)}</span></div>` + bar + tgt +
-    `<div class="topsites">${top || "no time yet"}</div>`;
-  card.querySelector(".name").onclick = () => renameCat(cat, cats, targets, challenge);
-  const setT = card.querySelector(".setT");
-  if (setT) setT.onclick = async (e) => {
-    e.preventDefault();
-    const m = prompt(`Daily target for "${cat}" (minutes):`, "60");
-    if (m !== null && +m > 0) { targets[cat] = (+m) * 60; await chrome.storage.local.set({ targets }); }
-  };
-  const inp = card.querySelector("input");
-  if (inp) inp.onchange = async () => {
-    const m = +inp.value;
-    if (m > 0) targets[cat] = m * 60; else delete targets[cat];
-    inp.blur();
-    await chrome.storage.local.set({ targets });
-  };
-  return card;
+
+/* ---------- categories & targets ---------- */
+function renderCats(roll, total, cats, targets, challenge) {
+  const list = $("catRows");
+  list.innerHTML = "";
+  [...cats.list].sort((a, b) => roll[b].s - roll[a].s).forEach(cat => {
+    const r = roll[cat], col = colorFor(cat, cats), t = targets[cat];
+    const share = total ? Math.round(r.s / total * 100) : 0;
+    const li = el("li", "row cat-row" + (r.s ? "" : " is-empty"),
+      `<i class="dot" style="background:${col}"></i>
+       <button class="quiet row-main" data-k="rename:${esc(cat)}" title="Rename">${esc(cat)}</button>
+       <span class="meta">${fmt(r.s)}${t ? ` of ${fmt(t)}` : r.s ? ` · ${share}%` : ""}</span>`);
+    li.querySelector("button").onclick = () => renameCat(cat, cats, targets, challenge);
+    if (t) {
+      const pct = Math.round(r.s / t * 100);
+      const bar = el("div", "progress" + (pct > 100 ? " is-over" : ""), `<i style="inline-size:${Math.min(100, pct)}%"></i>`);
+      bar.setAttribute("role", "progressbar");
+      bar.setAttribute("aria-label", `${cat}: ${pct}% of daily target`);
+      bar.setAttribute("aria-valuenow", String(Math.min(pct, 100)));
+      li.appendChild(bar);
+    }
+    const tb = el("button", "quiet small", t ? "Change target" : "Set target");
+    tb.dataset.k = `target:${cat}`;
+    tb.onclick = async () => {
+      const m = prompt(`Daily target for ${cat}, in minutes (0 removes it):`, t ? String(Math.round(t / 60)) : "60");
+      if (m === null || isNaN(+m)) return;
+      if (+m > 0) targets[cat] = Math.round(+m) * 60; else delete targets[cat];
+      await chrome.storage.local.set({ targets });
+    };
+    li.appendChild(tb);
+    list.appendChild(li);
+  });
 }
 async function renameCat(cat, cats, targets, challenge) {
   const name = (prompt("Rename category:", cat) || "").trim();
   if (!name || name === cat) return;
-  if (cats.list.includes(name)) { alert(`"${name}" already exists.`); return; }
+  if (cats.list.includes(name)) { alert(`There's already a category called "${name}".`); return; }
   await chrome.storage.local.set(renameCategory(cats, targets, challenge, cat, name));
 }
 
-/* ---------- sites today ---------- */
-function renderSites(entries, cats) {
-  const sr = $("siteRows");
-  sr.innerHTML = entries.length ? "" : `<div class="muted">Nothing tracked yet. Browse and come back.</div>`;
-  const maxS = entries.length ? Math.max(entries[0][1].s, 1) : 1;
-  for (const [dom, e] of entries) {
-    const c = catFor(dom, cats);
-    const col = colorFor(c, cats);
-    const row = el("div", "site",
-      `<div class="srow"><img src="${favicon(dom)}" alt=""><span class="dom">${esc(dom)}</span>
-         <span class="meta">${fmt(e.s)} · ${plural(e.v, "visit")}</span>
-         <button class="pill" style="--c:${col}" data-k="pill:${esc(dom)}">${esc(c)} ▾</button></div>
-       <div class="meter"><i style="width:${Math.round(e.s/maxS*100)}%;background:${col}"></i></div>`);
-    row.querySelector(".pill").onclick = () => {
-      openPicker = openPicker === dom ? null : dom;
-      requestRender();
-    };
-    if (openPicker === dom) row.appendChild(catPicker(dom, c, cats));
-    sr.appendChild(row);
-  }
-}
-
 /* ---------- patterns ---------- */
-function insights(v, day, entries, roll, total, visits, targets) {
+function insights(v, day, roll, total, visits, targets) {
   if (total < 120) return ["Patterns show up after a few minutes of browsing."];
   const out = [];
-  const [topCat, top] = Object.entries(roll).sort((a,b) => b[1].s - a[1].s)[0];
-  out.push(`<b>${esc(topCat)}</b> took ${Math.round(top.s / total * 100)}% of your browsing today (${fmt(top.s)}).`);
+  const [topCat, top] = Object.entries(roll).sort((a, b) => b[1].s - a[1].s)[0];
+  out.push(`<b>${esc(topCat)}</b> took ${Math.round(top.s / total * 100)}% of your browsing today.`);
   for (const [cat, t] of Object.entries(targets)) {
     const s = roll[cat] ? roll[cat].s : 0;
     if (s > t) out.push(`<b>${esc(cat)}</b> is ${fmt(s - t)} over its daily target.`);
     else if (s >= t * 0.8) out.push(`<b>${esc(cat)}</b> is at ${Math.round(s / t * 100)}% of its daily target.`);
   }
-  if (visits >= 5) out.push(`You switch sites about every <b>${fmt(total / visits)}</b> (${visits} visits today).`);
+  if (visits >= 5) out.push(`You switch sites about every <b>${fmt(total / visits)}</b>.`);
   let pk = 0, pv = 0;
-  day.hours.forEach((s,h) => { if (s > pv) { pv = s; pk = h; } });
-  if (pv) out.push(`Busiest hour: <b>${pk}:00–${pk+1}:00</b> (${fmt(pv)}).`);
+  day.hours.forEach((s, h) => { if (s > pv) { pv = s; pk = h; } });
+  if (pv) out.push(`Busiest hour: <b>${pk}:00–${pk + 1}:00</b> (${fmt(pv)}).`);
   /* only compare weeks once the earlier week was mostly tracked, or a new install reads as +500% */
   const prev = lastNDays(7, 7);
   const s7 = sumDays(v, lastNDays(7)), sp = sumDays(v, prev);
@@ -182,41 +142,36 @@ function insights(v, day, entries, roll, total, visits, targets) {
   }
   return out;
 }
-function renderPatterns(v, day, entries, roll, total, visits, targets) {
-  const ins = $("insights");
-  ins.innerHTML = "";
-  insights(v, day, entries, roll, total, visits, targets).forEach(t => ins.appendChild(el("div", "insight", t)));
-  $("charts").hidden = total < 120 && Object.keys(v).length <= 1;
-
-  const hb = $("hours"), hl = $("hourLabels");
-  hb.innerHTML = ""; hl.innerHTML = "";
-  const hmax = Math.max(...day.hours, 1), nowH = new Date().getHours();
-  day.hours.forEach((s,h) => {
-    const b = el("div", (!s ? "dim" : "") + (h === nowH ? " cur" : ""));
-    b.style.height = Math.max(2, Math.round(s / hmax * 56)) + "px";
-    b.title = `${h}:00 — ${fmt(s)}`;
-    hb.appendChild(b);
-    hl.appendChild(el("span", null, h % 3 === 0 ? String(h) : ""));
+function bars(box, labels, values, labelFor, tickFor, current, summary) {
+  box.innerHTML = ""; labels.innerHTML = "";
+  box.setAttribute("role", "img");
+  box.setAttribute("aria-label", summary);
+  const max = Math.max(...values, 1);
+  values.forEach((s, i) => {
+    const b = el("div", (s ? "" : "is-empty") + (i === current ? " is-current" : ""));
+    b.style.blockSize = Math.max(4, Math.round(s / max * 100)) + "%";
+    b.title = `${labelFor(i)} — ${fmt(s)}`;
+    box.appendChild(b);
+    labels.appendChild(el("span", null, tickFor(i)));
   });
-  const wb = $("week"), wl = $("weekLabels");
-  wb.innerHTML = ""; wl.innerHTML = "";
-  const days7 = lastNDays(7);
-  const wvals = days7.map(k => daySeconds(v[k]));
-  const wmax = Math.max(...wvals, 1);
-  days7.forEach((k,i) => {
-    const b = el("div", (!wvals[i] ? "dim" : "") + (i === 6 ? " cur" : ""));
-    b.style.height = Math.max(2, Math.round(wvals[i] / wmax * 56)) + "px";
-    b.title = `${dayLabel(k)} — ${fmt(wvals[i])}`;
-    wb.appendChild(b);
-    wl.appendChild(el("span", null, ["S","M","T","W","T","F","S"][new Date(k+"T12:00").getDay()]));
-  });
+}
+function renderPatterns(v, day, roll, total, visits, targets) {
+  $("insights").innerHTML = insights(v, day, roll, total, visits, targets).map(t => `<li>${t}</li>`).join("");
+  const nowH = new Date().getHours();
+  const busiest = day.hours.indexOf(Math.max(...day.hours));
+  bars($("hours"), $("hourLabels"), day.hours, h => `${h}:00`, h => (h % 6 === 0 ? String(h) : ""), nowH,
+    total ? `Active hours today, busiest ${busiest}:00` : "No activity yet today");
+  const days = lastNDays(7), vals = days.map(k => daySeconds(v[k]));
+  const name = k => new Date(k + "T12:00").toLocaleDateString(undefined, { weekday: "short" });
+  bars($("week"), $("weekLabels"), vals, i => name(days[i]), i => name(days[i]).slice(0, 2), 6,
+    "Last 7 days: " + days.map((k, i) => `${name(k)} ${fmt(vals[i])}`).join(", "));
 }
 
 /* ---------- history (Chrome history + TimeLens time) ---------- */
 let histCache = null, histAt = 0;
 async function historyByDomain() {
   if (histCache && Date.now() - histAt < HISTORY_TTL) return histCache;
-  const items = await chrome.history.search({ text: "", startTime: Date.now() - 7*864e5, maxResults: 2000 });
+  const items = await chrome.history.search({ text: "", startTime: Date.now() - 7 * 864e5, maxResults: 2000 });
   const byDom = {};
   items.forEach(h => {
     const d = domainOf(h.url);
@@ -229,101 +184,84 @@ async function historyByDomain() {
   return byDom;
 }
 async function renderHistory(v) {
-  const hr = $("histRows");
+  const list = $("histRows");
   let byDom;
   try { byDom = await historyByDomain(); }
-  catch { hr.innerHTML = `<div class="muted">History unavailable.</div>`; return; }
+  catch { list.innerHTML = `<li class="meta">Chrome history isn't available right now.</li>`; return; }
   const tracked = {};
   lastNDays(7).forEach(k => {
     if (v[k]) for (const [d, e] of Object.entries(v[k].domains)) tracked[d] = (tracked[d] || 0) + e.s;
   });
-  hr.innerHTML = "";
-  Object.entries(byDom).sort((a,b) => b[1].pages - a[1].pages).slice(0,20).forEach(([d, r]) => {
-    const t = tracked[d] ? `${fmt(tracked[d])} tracked` : "no time tracked";
-    hr.appendChild(el("div", "srow",
-      `<img src="${favicon(d)}" alt=""><span class="dom">${esc(d)}</span>
-       <span class="meta">${t} · ${plural(r.pages, "page")} · ${ago(r.last)}</span>`));
-  });
-  if (!Object.keys(byDom).length) hr.innerHTML = `<div class="muted">No history in range.</div>`;
+  const top = Object.entries(byDom).sort((a, b) => b[1].pages - a[1].pages).slice(0, 20);
+  list.innerHTML = top.length ? top.map(([d, r]) =>
+    `<li class="row"><img src="${favicon(d)}" alt=""><span class="row-main">${esc(d)}</span>
+     <span class="meta">${tracked[d] ? fmt(tracked[d]) : "—"} · ${plural(r.pages, "page")} · ${ago(r.last)}</span></li>`).join("")
+    : `<li class="meta">No history from the last 7 days.</li>`;
 }
 
 /* ---------- challenges ---------- */
 const CHALLENGE_PRESETS = [
-  { id:"detox7",    name:"Social Detox", cat:"Social",   op:"<=", limitMin:30,  days:7, icon:"🌿" },
-  { id:"deepwork5", name:"Deep Work",    cat:"Work",     op:">=", limitMin:180, days:5, icon:"🎯" },
-  { id:"newsdiet7", name:"News Diet",    cat:"News",     op:"<=", limitMin:20,  days:7, icon:"📰" },
-  { id:"learndaily",name:"Learn Daily",  cat:"Learning", op:">=", limitMin:30,  days:7, icon:"📚" },
+  { id: "detox7",     name: "Social detox", cat: "Social",   op: "<=", limitMin: 30,  days: 7, icon: "🌿" },
+  { id: "deepwork5",  name: "Deep work",    cat: "Work",     op: ">=", limitMin: 180, days: 5, icon: "🎯" },
+  { id: "newsdiet7",  name: "News diet",    cat: "News",     op: "<=", limitMin: 20,  days: 7, icon: "📰" },
+  { id: "learndaily", name: "Learn daily",  cat: "Learning", op: ">=", limitMin: 30,  days: 7, icon: "📚" },
 ];
 function challengeDayKeys(ch) {
-  const [y,m,dd] = ch.startDay.split("-").map(Number);
+  const [y, m, dd] = ch.startDay.split("-").map(Number);
   const out = [];
-  for (let i = 0; i < ch.days; i++) out.push(dayKey(new Date(y, m-1, dd+i)));
+  for (let i = 0; i < ch.days; i++) out.push(dayKey(new Date(y, m - 1, dd + i)));
   return out;
 }
 function catSeconds(v, cats, cat, dk) {
   const day = v[dk];
   if (!day) return 0;
-  return Object.entries(day.domains).reduce((a,[dom,e]) => a + (catFor(dom, cats) === cat ? e.s : 0), 0);
+  return Object.entries(day.domains).reduce((a, [dom, e]) => a + (catFor(dom, cats) === cat ? e.s : 0), 0);
 }
+const ruleText = (op, min, cat, days) => `${cat} ${op === "<=" ? "under" : "at least"} ${min} min a day, ${days} days`;
 function renderChallenges(v, cats, ch) {
   const box = $("challengeBox");
   box.innerHTML = "";
   if (!ch) {
-    const wrap = el("div", "chpresets");
+    $("challengeState").textContent = "";
+    const list = el("ul", "rows");
     CHALLENGE_PRESETS.forEach(p => {
       const cat = resolveCat(p.cat, cats);   // presets follow renamed categories
-      const b = el("button", "ghost chpreset");
+      const li = el("li");
+      const b = el("button", "row preset", `<span class="row-main">${p.icon} ${p.name}</span><span class="meta">${esc(ruleText(p.op, p.limitMin, cat, p.days))}</span>`);
       b.dataset.k = `preset:${p.id}`;
-      b.textContent = `${p.icon} ${p.name} · ${cat} ${p.op === "<=" ? "under" : "at least"} ${p.limitMin}m/day · ${p.days} days`;
       b.onclick = () => chrome.storage.local.set({ challenge: { ...p, cat, startDay: dayKey() } });
-      wrap.appendChild(b);
+      li.appendChild(b);
+      list.appendChild(li);
     });
-    box.appendChild(wrap);
+    box.appendChild(list);
     return;
   }
 
   const keys = challengeDayKeys(ch);
   const today = dayKey();
-  const over = today > keys[keys.length-1];
+  const over = today > keys[keys.length - 1];
   const tIdx = keys.indexOf(today);
   const lim = ch.limitMin * 60;
-  let dots = "", passed = 0;
-  keys.forEach(k => {
+  let passed = 0;
+  const days = keys.map(k => {
     const sec = catSeconds(v, cats, ch.cat, k);
     const ok = ch.op === "<=" ? sec <= lim : sec >= lim;
-    let sym = "·";
-    if (k < today) { sym = ok ? "✓" : "✗"; if (ok) passed++; }
-    else if (k === today) sym = "◐";
-    dots += `<span title="${k} · ${fmt(sec)}">${sym}</span> `;
-  });
+    if (k < today && ok) passed++;
+    const state = k < today ? (ok ? "passed" : "missed") : k === today ? "today" : "upcoming";
+    return `<li class="day is-${state}" title="${k}: ${fmt(sec)}"><span class="sr-only">${k} ${state}</span></li>`;
+  }).join("");
   const todaySec = tIdx >= 0 ? catSeconds(v, cats, ch.cat, today) : 0;
-  const pct = Math.min(100, Math.round(todaySec / lim * 100));
-  const failing = ch.op === "<=" && todaySec > lim;
+  $("challengeState").textContent = over ? `${ch.name} finished` : `${ch.name}, day ${tIdx + 1} of ${ch.days}`;
 
-  const card = el("div", "card");
-  if (over) {
-    card.innerHTML =
-      `<div class="row1"><span class="emoji">${passed === ch.days ? "🏆" : "💪"}</span>` +
-      `<span class="name">${esc(ch.name)} — finished</span></div>` +
-      `<div class="topsites">${passed}/${ch.days} days passed.</div>` +
-      `<div class="dots">${dots}</div>` +
-      `<button class="ghost" style="margin-top:8px">Start a new one</button>`;
-    card.querySelector("button").onclick = () => chrome.storage.local.remove("challenge");
-  } else {
-    card.innerHTML =
-      `<div class="row1"><span class="emoji">${ch.icon}</span>` +
-      `<span class="name">${esc(ch.name)}</span>` +
-      `<span class="time">day ${tIdx+1}/${ch.days}</span></div>` +
-      `<div class="dots">${dots}</div>` +
-      `<div class="bar"><i style="width:${pct}%;background:${failing ? "#f87171" : ch.op === "<=" ? "#34d399" : "#38bdf8"}"></i></div>` +
-      `<div class="tgt">today ${fmt(todaySec)} of ${ch.op === "<=" ? "max" : "goal"} ${ch.limitMin}m ${esc(ch.cat)}
-       <a href="#" class="quit">quit</a></div>`;
-    card.querySelector(".quit").onclick = (e) => {
-      e.preventDefault();
-      if (confirm("Quit this challenge?")) chrome.storage.local.remove("challenge");
-    };
-  }
-  box.appendChild(card);
+  box.innerHTML =
+    `<p><b>${ch.icon} ${esc(ch.name)}</b>${over ? ` · ${passed} of ${ch.days} days passed` : ""}</p>
+     <p class="meta">${esc(ruleText(ch.op, ch.limitMin, ch.cat, ch.days))}${over ? "" : ` · today ${fmt(todaySec)}`}</p>
+     <ol class="days" aria-label="Challenge days">${days}</ol>`;
+  const btn = el("button", "quiet", over ? "Start another challenge" : "Quit challenge");
+  btn.onclick = () => {
+    if (over || confirm(`Quit "${ch.name}"? Your progress on it will be lost.`)) chrome.storage.local.remove("challenge");
+  };
+  box.appendChild(btn);
 }
 
 /* ---------- render scheduling ----------
@@ -355,7 +293,7 @@ $("addCat").onclick = async () => {
   const name = (prompt("New category name:") || "").trim();
   if (!name) return;
   const cats = await getCats();
-  if (cats.list.includes(name)) { alert(`"${name}" already exists.`); return; }
+  if (cats.list.includes(name)) { alert(`There's already a category called "${name}".`); return; }
   cats.list.push(name);
   await chrome.storage.local.set({ catList: cats.list });
 };
@@ -368,9 +306,10 @@ $("exportBtn").onclick = async () => {
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 };
 $("resetBtn").onclick = async () => {
-  if (confirm("Delete ALL TimeLens data on this PC?")) await chrome.storage.local.clear();
+  if (confirm("Delete all TimeLens data? Your history, categories, targets and challenges will be erased. This can't be undone."))
+    await chrome.storage.local.clear();
 };
-$("ver").textContent = `100% local — nothing leaves this PC. v${chrome.runtime.getManifest().version}`;
+$("ver").textContent = `Stays on this PC · v${chrome.runtime.getManifest().version}`;
 
 /* local: saved data changed. session: the worker switched, paused or resumed what it tracks. */
 chrome.storage.onChanged.addListener(() => requestRender());

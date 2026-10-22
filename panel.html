@@ -1,83 +1,67 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>TimeLens</title><link rel="stylesheet" href="styles.css"></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>TimeLens</title><link rel="stylesheet" href="styles.css"></head>
 <body class="panel">
-<header>
-  <div class="topbar">
-    <div class="brand"><img src="icons/i48.png" alt="">Time<span>Lens</span></div>
-    <div class="date" id="dateLine"></div>
-  </div>
-  <div id="mascot" class="mascot"></div>
-  <div class="card kpi">
-    <div class="kpi-row">
-      <div>
-        <div class="lbl">Browsed today</div>
-        <div class="total" id="todayTotal">0m</div>
-      </div>
-      <div id="spark" title="Last 7 days"></div>
+<!-- Stat-Led (designing-layouts/structural-variety): the number first, then now + drift;
+     everything else collapsed (guiding-users: progressive disclosure). -->
+<header id="mascot" class="lens-line"></header>
+
+<main>
+  <section class="hero" aria-labelledby="todayLabel">
+    <div class="hero-top">
+      <h1 id="todayLabel" class="eyebrow">Browsed today</h1>
+      <div id="spark"></div>
     </div>
-    <div class="trend" id="trend"></div>
-    <div class="sub" id="todaySub"></div>
+    <p class="display" id="todayTotal">0m</p>
+    <p class="meta" id="trend"></p>
     <div class="stack" id="catStack"></div>
-    <div class="legend" id="catLegend"></div>
-  </div>
-</header>
+    <p class="legend" id="catLegend"></p>
+  </section>
 
-<section id="nowBox"></section>
+  <section id="nowBox" aria-label="Current site"></section>
 
-<section id="welcome" class="card welcome" hidden>
-  <b>TimeLens is running.</b>
-  <p>It counts time only while a website is in front of you and you're active, or a video or call is playing. Everything stays on this PC.</p>
-  <p>Browse for a few minutes and your categories, drifts and patterns will fill in here.</p>
-</section>
+  <section aria-labelledby="driftLabel">
+    <h2 id="driftLabel" class="eyebrow">Drift</h2>
+    <div class="path" id="pathStrip"></div>
+    <div class="path-labels" id="pathLabels"></div>
+    <p id="driftSum" class="drift-sum"></p>
+    <details id="driftMore"><summary>All drifts today</summary><ol id="driftList" class="timeline"></ol></details>
+  </section>
 
-<section>
-  <h2>Drift <span class="hint">· when you slid off track</span></h2>
-  <p id="driftSum" class="muted"></p>
-  <div class="path" id="pathStrip"></div>
-  <div class="pathlabels" id="pathLabels"></div>
-  <ol id="driftList" class="dtl"></ol>
-</section>
+  <details class="more">
+    <summary>Sites <span class="meta" id="sitesCount"></span></summary>
+    <ul id="siteRows" class="rows"></ul>
+  </details>
+  <details class="more">
+    <summary>Categories &amp; targets</summary>
+    <ul id="catRows" class="rows"></ul>
+    <button id="addCat" class="quiet">Add a category</button>
+  </details>
+  <details class="more">
+    <summary>Challenges <span class="meta" id="challengeState"></span></summary>
+    <div id="challengeBox"></div>
+  </details>
+  <details class="more">
+    <summary>Patterns</summary>
+    <ul id="insights" class="insights"></ul>
+    <h3 class="eyebrow">Active hours today</h3>
+    <div id="hours" class="bars"></div><div class="bar-labels" id="hourLabels"></div>
+    <h3 class="eyebrow">Last 7 days</h3>
+    <div id="week" class="bars"></div><div class="bar-labels" id="weekLabels"></div>
+  </details>
+  <details class="more">
+    <summary>History <span class="meta">last 7 days</span></summary>
+    <ul id="histRows" class="rows"></ul>
+  </details>
+</main>
 
-<section>
-  <h2>Categories</h2>
-  <div id="catCards" class="cards"></div>
-  <div id="catEmpty" class="emptycats"></div>
-  <button id="addCat" class="ghost small">+ Add category</button>
-</section>
-
-<section>
-  <h2>Challenges <span class="hint">· one tap, tracked in background</span></h2>
-  <div id="challengeBox"></div>
-</section>
-
-<section>
-  <h2>Sites today <span class="hint">· tap a category to change it</span></h2>
-  <div id="siteRows"></div>
-</section>
-
-<section>
-  <h2>Patterns</h2>
-  <div id="insights" class="insights"></div>
-  <div id="charts">
-    <h3>Active hours today</h3>
-    <div id="hours" class="bars"></div><div class="blabels" id="hourLabels"></div>
-    <h3>Last 7 days</h3>
-    <div id="week" class="bars"></div><div class="blabels" id="weekLabels"></div>
-  </div>
-</section>
-
-<section>
-  <h2>History <span class="hint">· last 7 days, from Chrome history</span></h2>
-  <div id="histRows"></div>
-</section>
-
-<footer>
-  <button id="exportBtn" class="ghost">Export JSON</button>
-  <button id="resetBtn" class="danger">Reset all data</button>
-  <div class="tiny" id="ver"></div>
+<footer class="foot">
+  <button id="exportBtn" class="quiet">Export data</button>
+  <button id="resetBtn" class="quiet danger">Delete all data</button>
+  <span id="ver" class="meta"></span>
 </footer>
 
 <script src="lib.js"></script>
+<script src="lens.js"></script>
 <script src="ui.js"></script>
 <script src="panel.js"></script>
 </body></html>

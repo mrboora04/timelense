@@ -1,5 +1,4 @@
-/* TimeLens popup — what's being tracked right now + today at a glance.
-   External file (MV3 blocks inline scripts). */
+/* TimeLens popup — today's number, what's tracked now, and Lens. External file (MV3 blocks inline scripts). */
 let liveBase = null;
 
 async function renderPopup() {
@@ -7,24 +6,16 @@ async function renderPopup() {
   const cats = catsFrom(store);
   const [live, tab] = await Promise.all([getLive(), activeTab()]);
   const day = addLive((store.v1 || {})[dayKey()] || blankDay(), live);
-  const entries = Object.entries(day.domains).sort((a,b) => b[1].s - a[1].s);
+  const entries = Object.entries(day.domains);
   const total = daySeconds(day);
   const drift = driftState(store.trail, cats);
 
-  const now = renderNow($("pNow"), tab, live, day, cats, { compact: true, drift: drift.ongoing });
+  $("pTotal").textContent = fmt(total);
+  renderStack($("pStack"), $("pLegend"), rollup(entries, cats), total, cats);
+  const now = renderNow($("pNow"), tab, live, day, cats);
   liveBase = { ...now, total, at: Date.now() };
   renderMascot($("pMascot"), mascotMood({
     onSite: !!(tab && domainOf(tab.url)), tracking: now.tracking, total, drift: drift.ongoing, streak: drift.streak }));
-  $("pTotal").textContent = fmt(total);
-  $("pSub").textContent = entries.length
-    ? `${plural(entries.length, "site")} · ${plural(entries.reduce((a,[,e]) => a + e.v, 0), "visit")}`
-    : "Tracking starts when you use a website.";
-  renderStack($("pStack"), $("pLegend"), rollup(entries, cats), total, cats);
-
-  const top = $("pTop");
-  top.innerHTML = "";
-  entries.slice(0, 3).forEach(([d, e]) => top.appendChild(el("div", "srow",
-    `<img src="${favicon(d)}" alt=""><span class="dom">${esc(d)}</span><span class="meta">${fmt(e.s)}</span>`)));
 }
 
 /* sidePanel.open needs the click's user gesture, so the window id is fetched up front:

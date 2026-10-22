@@ -4,12 +4,15 @@
 
 TimeLens is a small Chrome extension (about 26 KB gzipped, no dependencies at runtime). It shows a live timer for the site you're on, sorts your day into categories, and draws a timeline of every time you slid from work into distraction, with Lens the mascot keeping you company. It runs 100% locally: data lives in `chrome.storage` on your PC and is never sent anywhere.
 
-- **Popup:** Lens the mascot, what's being tracked right now (with a live timer), today's total, a category breakdown and your top sites.
+- **Popup:** Lens the mascot, today's total, a category breakdown and the site you're on, with a live timer.
 - **Side panel:** a today card with change vs yesterday and a 7-day sparkline, drift timeline, categories with daily targets, one-tap challenges, every site visited today, patterns and 7-day history.
 - **Lens:** a small mascot whose face and message follow your state: waving, happy, proud of a focus streak, curious when you wander, worried when you're doomscrolling, asleep when paused.
 
+## Design
+Minimal and black and white. The side panel leads with one number (today's total), then the site you're on and your drift. Everything else sits in collapsed sections. Colour is used only for status: green while tracking, amber for drift, red for delete. Categories are shades of grey, and every chart has a text alternative for screen readers. The design follows a skills library: design-critique, accessibility-review (WCAG 2.1 AA), ux-copy, theming-components, designing-layouts and the character-animation skills. See `docs/ui-audit.md` for the before-and-after.
+
 ## Drift
-TimeLens records the order you move between sites (`trail`, kept for 2 days). A **drift** is leaving a focus site (Work, Learning) for a distracting one (Social, Entertainment, News, Shopping) for 5+ minutes. It ends when you're back on a focus site or after a 10-minute break. Scrolling for 20+ minutes with no focus site before it counts as **doomscrolling**. The side panel shows a strip of today's path and a timeline of each drift: when it started, the chain of sites, how long it lasted, and whether you came back. While a drift is happening, the Now card and Lens remind you where you left off. There are no pop-up notifications.
+TimeLens records the order you move between sites (`trail`, kept for 2 days). A **drift** is leaving a focus site (Work, Learning) for a distracting one (Social, Entertainment, News, Shopping) for 5+ minutes. It ends when you're back on a focus site or after a 10-minute break. Scrolling for 20+ minutes with no focus site before it counts as **doomscrolling**. The side panel shows a strip of today's path and a timeline of each drift: when it started, the chain of sites, how long it lasted, and whether you came back. While a drift is happening, Lens reminds you where you left off. There are no pop-up notifications.
 
 ## Categories
 About 250 sites are built in, including popular Indian sites. Unknown sites are guessed from their name: `.edu` and `.ac.in` → Learning, names with "news" → News, "shop" or "store" → Shopping, `localhost` → Work, and so on. Anything else is Other. Your own picks always win.
@@ -37,11 +40,13 @@ A **visit** is counted when you land on a different site or tab. Returning to th
 | `manifest.json` | Extension config (Manifest V3) |
 | `background.js` | Service worker: decides what's being tracked and saves time |
 | `lib.js` | Shared logic: categories, drift detection, Lens's moods, formatting (used everywhere) |
-| `ui.js` | Shared UI: category buttons, live "Now" card, category bar, Lens, drift timeline |
+| `ui.js` | Shared UI: category buttons, the "now" row, charts with text alternatives, drift timeline |
+| `lens.js` | Lens the mascot: rig data, pose library, mood transitions |
 | `popup.html/js` | Toolbar popup |
 | `panel.html/js` | Side-panel dashboard |
-| `styles.css` | Styles for both |
+| `styles.css` | Styles for both, built entirely on design tokens |
 | `build.mjs` | Minified build into `dist/` |
+| `docs/ui-audit.md` | Design, accessibility and copy audit behind the v1.3 redesign |
 
 ## Data (in `chrome.storage.local`)
 - `v1`: `{ "YYYY-MM-DD": { domains: { "github.com": { s: seconds, v: visits } }, hours: [24 × seconds] } }`, last 30 days
@@ -54,4 +59,4 @@ Use **Export JSON** in the side panel to back it up.
 ```bash
 npm test
 ```
-The tests run `background.js` and `lib.js` against a fake `chrome` API (`test/fake-chrome.js`). Node 18+ needed; there are no dependencies.
+The tests run `background.js`, `lib.js` and `lens.js` (rig and pose checks) against a fake `chrome` API (`test/fake-chrome.js`). Node 18+ needed; there are no dependencies.
