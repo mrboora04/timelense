@@ -62,7 +62,7 @@ const CAT_KEYS = ["catList", "catMap", "catAlias"];
 /* Bump with every change. Chrome reloads the dashboard's files from disk on their own, but
    keeps running the old background worker until the extension is reloaded; the pages
    compare this number with the worker's to notice that and offer a reload. */
-const TL_BUILD = 170;
+const TL_BUILD = 171;
 
 const pad = n => String(n).padStart(2, "0");
 function dayKey(d = new Date()) {
@@ -148,7 +148,6 @@ function daySeconds(day) {
 const FOCUS_CATS = ["Work", "Learning"];
 const DISTRACT_CATS = ["Social", "Entertainment", "News", "Shopping"];
 const DRIFT_MIN_SECS = 5 * 60;   // shorter detours aren't drifts
-const DOOM_MIN_SECS = 20 * 60;   // distraction with no focus site before it (pure doomscrolling)
 const BREAK_SECS = 10 * 60;      // a pause this long starts a fresh stretch
 
 /* trail: { dayKey: [{ d: domain or null, t: ms }] }, written by the worker; d null = paused.
@@ -164,8 +163,9 @@ function siteKind(domain, cats) {
   if (DISTRACT_CATS.some(x => resolveCat(x, cats) === c)) return "distract";
   return "neutral";
 }
-/* A drift starts when you go from a focus site (Work, Learning) to a distracting one and lasts
-   until you're back on a focus site or take a long break. Returns
+/* A drift is 5+ minutes on distracting sites (Social, Entertainment, News, Shopping), whether you
+   left a focus site (Work, Learning) for it (from = that site) or started there (from = null).
+   It lasts until you're back on a focus site or take a long break. Returns
    { drifts: oldest first, ongoing: the drift happening right now or null, streak: focus secs now }.
    drift: { from, leftAt, end, secs, sites: [domains in order], returned, backTo, ongoing } */
 /* trail entries -> time ranges spent on each site: [{ d, start, end, open }] */
@@ -181,7 +181,8 @@ function findDrifts(entries, cats, now = Date.now()) {
   const segs = trailSegments(entries, now);
   const drifts = [];
   let anchor = null, cur = null, lastEnd = -Infinity, streak = 0;
-  const keep = d => d.secs >= (d.from ? DRIFT_MIN_SECS : DOOM_MIN_SECS);
+  /* every distracting stretch of 5+ minutes counts, whether or not a focus site came first */
+  const keep = d => d.secs >= DRIFT_MIN_SECS;
   const close = () => { if (cur && keep(cur)) drifts.push(cur); cur = null; };
   for (const s of segs) {
     if (s.bg) continue;   // music playing while you work elsewhere isn't a drift
@@ -269,7 +270,9 @@ function mascotMood({ onSite, tracking, total, drift, streak, why, bg }) {
   if (!tracking) return { mood: "sleep", text: `Paused: ${why || "waiting for activity"}. I'll wait right here.` };
   if (bg) return { mood: "happy", text: "Counting what's playing in the background." };
   if (drift && !drift.from) {
-    return { mood: "worried", text: `${fmt(drift.secs)} of scrolling on ${drift.sites.slice(-2).join(", ")}. Break time?` };
+    return drift.secs >= 15 * 60
+      ? { mood: "worried", text: `${fmt(drift.secs)} on ${drift.sites.slice(-2).join(", ")} since ${timeOf(drift.leftAt)}. Break time?` }
+      : { mood: "curious", text: `You started on ${drift.sites[0]} ${fmt(drift.secs)} ago. On purpose?` };
   }
   if (drift && drift.secs >= 15 * 60) {
     return { mood: "worried",

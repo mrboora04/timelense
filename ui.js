@@ -155,13 +155,13 @@ function renderDriftList(sum, list, more, drifts, now = Date.now()) {
   const today = drifts.filter(d => d.end > midnight.getTime());
   more.hidden = !today.length;
   if (!today.length) {
-    patch(sum, `No drifts today. <span class="meta">You drift when you leave Work or Learning for 5+ minutes.</span>`);
+    patch(sum, `No drifts today. <span class="meta">A drift is 5+ minutes on Social, Entertainment, News or Shopping sites.</span>`);
     return;
   }
   const total = today.reduce((a, d) => a + d.secs, 0);
   const last = today[today.length - 1];
   patch(sum, `${plural(today.length, "drift")}, ${fmt(total)} off track. ` +
-    `<span class="meta">Latest: ${last.from ? `left ${esc(last.from)} ` : ""}at <time datetime="${isoTime(last.leftAt)}">${timeOf(last.leftAt)}</time>` +
+    `<span class="meta">Latest: ${last.from ? `left ${esc(last.from)}` : `started on ${esc(last.sites[0])}`} at <time datetime="${isoTime(last.leftAt)}">${timeOf(last.leftAt)}</time>` +
     `${last.ongoing ? ", still going" : ""}.</span>`);
   patch(list, today.slice().reverse().map(d => {
     const chain = [d.from, ...d.sites].filter(Boolean).map(esc).join(" → ");
