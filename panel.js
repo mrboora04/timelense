@@ -17,7 +17,7 @@ function showStale(live) { $("staleNote").hidden = !workerStale(live); }
 $("reloadBtn").onclick = () => chrome.runtime.reload();
 
 async function render() {
-  const store = await chrome.storage.local.get(["v1", "challenge", "trail", ...CAT_KEYS]);
+  const store = await chrome.storage.local.get(["v1", "challenge", "trail", ...CAT_KEYS, ...BLOCK_KEYS]);
   const v = store.v1 || {};
   const cats = catsFrom(store);
   const [live, tab] = await Promise.all([getLive(), activeTab()]);
@@ -45,14 +45,122 @@ async function render() {
   renderUsage(v);
 
   $("sitesCount").textContent = entries.length ? `${entries.length} today` : "";
-  patch($("siteRows"), entries.length
-    ? entries.map(([dom, e]) => `<li class="row"><img src="${favicon(dom)}" alt=""><span class="row-main">${esc(dom)}</span>
-        <span class="meta">${fmt(e.s)}</span>${catToggleHTML(`site:${dom}`, dom, catFor(dom, cats), cats)}</li>`).join("")
-    : `<li class="meta">Nothing tracked yet today. Sites appear here as you browse.</li>`);
+  const limits = store.limits || {};
+  /* sites with a timer stay listed on days you haven't opened them, so the timer can be changed */
+  const timed = Object.keys(limits).filter(site => !day.domains[site]).map(site => [site, { s: 0, v: 0 }]);
+  siteState = { entries: [...entries, ...timed], block: { limits, focus: store.focus || null, cats, day } };
+  if (!typingTimer()) showSiteRows();   // leave the rows alone while you're typing a timer
+  showFocus(store.focus || null, cats);
 
-  catState = { cats, roll, challenge: store.challenge };
+  catState = { cats, roll, challenge: store.challenge, focus: store.focus || null };
   if (!editing) showCatRows();   // leave the list alone while you're typing in it
 }
+
+/* ---------- site timers: a daily limit per site, set in the site's row ---------- */
+let siteState = null;            // { entries, block: blockReason's state } from the last render
+let timerError = null;           // { site, msg, draft } after an invalid custom timer
+const typingTimer = () => !!(document.activeElement && document.activeElement.matches("[data-limit-input]"));
+
+/* the row's timer button and the choices it opens; a timer on youtube.com also covers m.youtube.com */
+function timerToggleHTML(dom, { limits, day }) {
+  const site = timerFor(dom, limits) || dom, limit = limits[site] || 0;
+  const left = limit - siteUsed(day, site), key = `timer:${dom}`, open = openPickers.has(key);
+  const label = !limit ? "Timer" : left > 0 ? `${fmt(left)} left` : "Time's up";
+  const err = timerError && timerError.site === site ? timerError : null;
+  const custom = limit && !TIMER_MINS.includes(limit / 60) ? String(limit / 60) : "";
+  return `<button class="choice timer${limit && left <= 0 ? " is-up" : ""}" data-toggle="${esc(key)}" aria-expanded="${open}"
+      aria-label="Daily timer for ${esc(site)}: ${limit ? esc(label) : "none"}">${esc(label)}</button>
+    <div class="chips" role="group" aria-label="Daily timer for ${esc(site)}"${open ? "" : " hidden"}>
+      ${TIMER_MINS.map(m => `<button class="chip" data-limit-site="${esc(site)}" data-limit="${m * 60}"
+        aria-pressed="${limit === m * 60}">${minsLabel(m)}</button>`).join("")}
+      <input class="inline-edit timer-mins" data-limit-input="${esc(site)}" inputmode="numeric" maxlength="4"
+        value="${esc(err ? err.draft : custom)}" placeholder="Other" aria-label="Other daily timer for ${esc(site)}, in minutes"
+        ${err ? `aria-invalid="true" aria-describedby="timerErr"` : ""}>
+      ${limit ? `<button class="chip" data-limit-site="${esc(site)}" data-limit="0">No timer</button>` : ""}
+      ${err ? `<p id="timerErr" class="field-error" role="alert">${esc(err.msg)}</p>` : ""}
+      <p class="meta">Minutes a day. Resets at midnight. When time's up, ${esc(site)} is paused for the rest of the day.</p>
+    </div>`;
+}
+function showSiteRows(focusSite = null) {
+  if (!siteState) return;
+  const { entries, block } = siteState;
+  patch($("siteRows"), entries.length
+    ? entries.map(([dom, e]) => `<li class="row${blockReason(dom, block) ? " is-paused" : ""}"><img src="${favicon(dom)}" alt="">
+        <span class="row-main">${esc(dom)}</span><span class="meta">${fmt(e.s)}</span>
+        ${catToggleHTML(`site:${dom}`, dom, catFor(dom, block.cats), block.cats)}${timerToggleHTML(dom, block)}</li>`).join("")
+    : `<li class="meta">Nothing tracked yet today. Sites appear here as you browse.</li>`);
+  if (focusSite) {
+    const input = [...$("siteRows").querySelectorAll(`[data-limit-input="${CSS.escape(focusSite)}"]`)]
+      .find(i => !i.closest("[hidden]"));
+    if (input) { input.focus(); input.select(); }
+  }
+}
+async function setLimit(site, secs) {
+  const limits = (await chrome.storage.local.get("limits")).limits || {};
+  if (secs) limits[site] = secs; else delete limits[site];
+  timerError = null;
+  await chrome.storage.local.set({ limits });
+}
+async function commitTimer(input, refocus) {
+  const site = input.dataset.limitInput, draft = input.value.trim();
+  if (!draft) return;
+  const mins = Number(draft);
+  if (!Number.isInteger(mins) || mins < 1 || mins > 1440) {
+    timerError = { site, draft, msg: "Enter whole minutes, from 1 to 1440." };
+    return showSiteRows(refocus ? site : null);
+  }
+  if ((siteState.block.limits[site] || 0) !== mins * 60) await setLimit(site, mins * 60);
+}
+$("siteRows").addEventListener("click", e => {
+  const b = e.target.closest("[data-limit]");
+  if (b) setLimit(b.dataset.limitSite, Number(b.dataset.limit));
+});
+$("siteRows").addEventListener("keydown", e => {
+  if (!e.target.matches("[data-limit-input]")) return;
+  if (e.key === "Enter") { e.preventDefault(); commitTimer(e.target, true); }
+  if (e.key === "Escape") { e.preventDefault(); timerError = null; e.target.value = ""; e.target.blur(); }
+});
+$("siteRows").addEventListener("focusout", e => {   // clicking away saves, like the category editor
+  if (e.target.matches("[data-limit-input]")) commitTimer(e.target, false);
+});
+
+/* ---------- Focus mode: pause distracting sites, with short breaks ---------- */
+const andList = a => (a.length < 2 ? a.join("") : `${a.slice(0, -1).join(", ")} and ${a[a.length - 1]}`);
+function showFocus(focus, cats, now = Date.now()) {
+  const on = !!(focus && focus.on), paused = focusCats(focus, cats);
+  const sites = paused.length ? `${andList(paused)} sites` : "";
+  $("focusSwitch").setAttribute("aria-checked", String(on));
+  $("focusStatus").textContent = !on ? (sites ? `Pauses ${sites} while you work.` : "Pick the categories to pause below.")
+    : onBreak(focus, now) ? `On a break until ${timeOf(focus.breakUntil)}.`
+    : sites ? `On. ${sites} are paused.` : "On. Pick the categories to pause below.";
+  patch($("focusBreak"), !on ? "" : onBreak(focus, now)
+    ? `<button class="quiet" data-break="0">End break now</button>`
+    : `<div class="chips" role="group" aria-labelledby="breakLabel"><span id="breakLabel" class="meta break-label">Take a break</span>${
+        BREAK_MINS.map(m => `<button class="chip" data-break="${m}">${m} min</button>`).join("")}</div>`);
+  patch($("focusCats"), cats.list.map(c =>
+    `<button class="chip" data-focus-cat="${esc(c)}" aria-pressed="${paused.includes(c)}">${esc(c)}</button>`).join(""));
+}
+async function updateFocus(change) {
+  const { focus, ...rest } = await chrome.storage.local.get(["focus", ...CAT_KEYS]);
+  const cur = focus || { on: false, breakUntil: null };
+  await chrome.storage.local.set({ focus: { ...cur, ...change(cur, catsFrom(rest)) } });
+}
+$("focusSwitch").onclick = () => updateFocus(f => ({ on: !f.on, breakUntil: null }));
+$("focusBreak").addEventListener("click", e => {
+  const b = e.target.closest("[data-break]");
+  if (!b) return;
+  const mins = Number(b.dataset.break);
+  updateFocus(() => ({ breakUntil: mins ? Date.now() + mins * 60000 : null }));
+});
+$("focusCats").addEventListener("click", e => {
+  const b = e.target.closest("[data-focus-cat]");
+  if (!b) return;
+  const cat = b.dataset.focusCat;
+  updateFocus((f, cats) => {
+    const list = focusCats(f, cats);
+    return { cats: list.includes(cat) ? list.filter(c => c !== cat) : [...list, cat] };
+  });
+});
 
 /* ---------- categories: rename / add, edited in place ---------- */
 const NEW_CAT = "\u0000new";
@@ -104,7 +212,7 @@ function stopEdit(savedAs = null) {
 }
 async function commitEdit(value) {
   if (committing || !editing) return;
-  const name = value.trim(), was = editing, { cats, challenge } = catState;
+  const name = value.trim(), was = editing, { cats, challenge, focus } = catState;
   if (!name || name === was) return stopEdit();
   if (cats.list.includes(name)) {
     draft = name;
@@ -114,7 +222,7 @@ async function commitEdit(value) {
   }
   committing = true;
   await chrome.storage.local.set(was === NEW_CAT ? { catList: [...cats.list, name] }
-                                                 : renameCategory(cats, {}, challenge, was, name));
+                                                 : renameCategory(cats, {}, challenge, was, name, focus));
   committing = false;
   catState.cats = await getCats();   // so the list redraws with the new name right away
   stopEdit(name);

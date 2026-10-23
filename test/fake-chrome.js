@@ -12,7 +12,7 @@ function event() {
   const ls = [];
   return { addListener: f => ls.push(f), fire: (...a) => ls.map(f => f(...a)) };
 }
-function area(data, world) {
+function area(data, world, onChanged, name) {
   return {
     async get(keys) {
       if (keys == null) return clone(data);
@@ -22,7 +22,10 @@ function area(data, world) {
     },
     async set(obj) {
       if (world && "v1" in obj) world.v1Writes++;
+      const changes = {};
+      for (const k in obj) changes[k] = { oldValue: clone(data[k]), newValue: clone(obj[k]) };
       Object.assign(data, clone(obj));
+      if (onChanged) onChanged.fire(changes, name);
     },
     async remove(k) { delete data[k]; },
     async clear() { for (const k in data) delete data[k]; },
@@ -36,16 +39,28 @@ function makeWorld() {
     idle: "active",
     tabs: [{ id: 1, url: "https://github.com/a", active: true, audible: false }],
     local: {}, session: {}, alarms: {}, alarmCreates: 0, v1Writes: 0,
+    rules: [],   // declarativeNetRequest session rules
   };
 }
 
 function makeChrome(world, ev) {
   return {
-    storage: { local: area(world.local, world), session: area(world.session) },
+    storage: { local: area(world.local, world, ev.storage, "local"), session: area(world.session), onChanged: ev.storage },
+    declarativeNetRequest: {
+      getSessionRules: async () => clone(world.rules),
+      updateSessionRules: async ({ removeRuleIds = [], addRules = [] }) => {
+        world.rules = world.rules.filter(r => !removeRuleIds.includes(r.id)).concat(clone(addRules));
+      },
+    },
     idle: { setDetectionInterval() {}, queryState: async () => world.idle, onStateChanged: ev.idle },
     tabs: {
-      query: async (q = {}) => clone(world.tabs.filter(t => (q.audible ? t.audible : t.active))),
+      query: async (q = {}) => clone(world.tabs.filter(t => (!q.audible || t.audible) && (!q.active || t.active))),
       get: async id => clone(world.tabs.find(t => t.id === id)),
+      update: async (id, props) => {
+        const tab = Object.assign(world.tabs.find(t => t.id === id), clone(props));
+        if (props.url) ev.tabsUpd.fire(id, { url: props.url }, clone(tab));
+        return clone(tab);
+      },
       onActivated: ev.tabsAct, onUpdated: ev.tabsUpd, onRemoved: ev.tabsRem,
     },
     windows: {
@@ -61,9 +76,10 @@ function makeChrome(world, ev) {
     alarms: {
       get: async n => world.alarms[n] || null,
       create: (n, o) => { world.alarms[n] = o; world.alarmCreates++; },
+      clear: async n => delete world.alarms[n],
       onAlarm: ev.alarm,
     },
-    runtime: { onStartup: ev.startup, onMessage: ev.msg, onConnect: ev.connect, getURL: p => "chrome-extension://test" + p },
+    runtime: { onStartup: ev.startup, onMessage: ev.msg, onConnect: ev.connect, getURL: p => "chrome-extension://test/" + p.replace(/^\//, "") },
   };
 }
 
@@ -83,13 +99,18 @@ function run(ctx, file) {
 /* Starts a fresh worker over the same world, like Chrome waking a suspended service worker. */
 function bootWorker(world) {
   const ev = Object.fromEntries(
-    ["tabsAct", "tabsUpd", "tabsRem", "focus", "idle", "startup", "alarm", "msg", "connect"].map(k => [k, event()]));
-  const ctx = context(world, makeChrome(world, ev));
+    ["tabsAct", "tabsUpd", "tabsRem", "focus", "idle", "startup", "alarm", "msg", "connect", "storage"].map(k => [k, event()]));
+  const chrome = makeChrome(world, ev);
+  const ctx = context(world, chrome);
   run(ctx, "background.js");
   return {
     ev,
     tick: () => ev.alarm.fire({ name: "tick" }),
     live: () => new Promise(r => ev.msg.fire({ type: "getLive" }, {}, r)),
+    /* the paused page's question: why is this domain paused? */
+    whyPaused: domain => new Promise(r => ev.msg.fire({ type: "whyPaused", domain }, {}, r)),
+    /* a write from the side panel or the paused page */
+    store: obj => chrome.storage.local.set(obj),
     /* opens the toolbar popup's port; returns a function that closes it */
     openPopup: () => {
       const disc = event();
@@ -106,7 +127,8 @@ function loadLib() {
   run(ctx, "lib.js");
   return vm.runInContext(
     `({ catFor, catsFrom, resolveCat, renameCategory, fmt, clock, esc, addLive, blankDay, domainOf, dayKey,
-        BUILTIN_CATS, guessCat, findDrifts, trailEntries, mascotMood, workerStale, TL_BUILD })`, ctx);
+        BUILTIN_CATS, guessCat, findDrifts, trailEntries, mascotMood, workerStale, TL_BUILD,
+        blockReason, timerFor, siteUsed, focusCats, minsLabel })`, ctx);
 }
 
 /* lets every pending promise chain in the worker finish */

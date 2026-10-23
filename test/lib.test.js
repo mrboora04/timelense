@@ -80,3 +80,40 @@ test("addLive only adds a session that is tracking", () => {
   const paused = L.addLive(L.blankDay(), { domain: "a.com", tracking: false, elapsed: 0 });
   assert.deepEqual(plain(Object.keys(paused.domains)), []);
 });
+
+/* ---------- site timers and Focus mode ---------- */
+const dayWith = domains => ({ domains, hours: new Array(24).fill(0) });
+
+test("a timer covers the site and its subdomains, most specific first", () => {
+  const limits = { "youtube.com": 600, "music.youtube.com": 1800 };
+  assert.equal(L.timerFor("m.youtube.com", limits), "youtube.com");
+  assert.equal(L.timerFor("music.youtube.com", limits), "music.youtube.com");
+  assert.equal(L.timerFor("github.com", limits), null);
+  assert.equal(L.siteUsed(dayWith({ "youtube.com": { s: 100 }, "m.youtube.com": { s: 50 }, "notyoutube.com": { s: 9 } }),
+    "youtube.com"), 150);
+});
+
+test("blockReason: a used-up timer, then Focus mode, then nothing", () => {
+  const c = cats();
+  const day = dayWith({ "youtube.com": { s: 600 } });
+  assert.equal(L.blockReason("youtube.com", { limits: { "youtube.com": 601 }, cats: c, day }), null);
+  assert.equal(L.blockReason("youtube.com", { limits: { "youtube.com": 600 }, cats: c, day }).kind, "timer");
+  const focus = { on: true };
+  assert.deepEqual(plain(L.blockReason("reddit.com", { focus, cats: c, day })), { kind: "focus", cat: "Social" });
+  assert.equal(L.blockReason("github.com", { focus, cats: c, day }), null);
+  assert.equal(L.blockReason("reddit.com", { focus: { on: true, breakUntil: Date.now() + 1000 }, cats: c, day }), null);
+  assert.equal(L.blockReason("reddit.com", { focus: { on: false }, cats: c, day }), null);
+});
+
+test("Focus mode's default categories follow renames, and a rename carries picked ones", () => {
+  assert.deepEqual(plain(L.focusCats(null, cats({ catAlias: { Social: "Friends" } }))),
+    ["Friends", "Entertainment", "News", "Shopping"]);
+  const upd = L.renameCategory(L.catsFrom({}), {}, null, "News", "Headlines", { on: true, cats: ["News", "Social"] });
+  assert.deepEqual(plain(upd.focus), { on: true, cats: ["Headlines", "Social"] });
+});
+
+test("timer lengths read the way people say them", () => {
+  assert.equal(L.minsLabel(15), "15 min");
+  assert.equal(L.minsLabel(120), "2 h");
+  assert.equal(L.minsLabel(90), "1h 30m");
+});

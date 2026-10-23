@@ -2,7 +2,9 @@
    Every event funnels into sync(), which asks "what is the user looking at right now?"
    and keeps, switches or pauses the session to match. Changes run one at a time (serial)
    so overlapping events can't double-count time or overwrite each other's writes.
-   Session state lives in chrome.storage.session so time survives worker suspension. */
+   Session state lives in chrome.storage.session so time survives worker suspension.
+   Site timers and Focus mode pause sites with declarativeNetRequest block rules, which Chrome
+   applies locally; nothing about the pages is read or sent anywhere. */
 importScripts("lib.js");
 
 const IDLE_SECS = 60;
@@ -157,16 +159,101 @@ async function tick() {
   }
 }
 
-const resync = () => serial(sync);
+/* ---------- site timers and Focus mode ---------- */
+const PAUSED_PAGE = "blocked.html";
+const RULE_IDS = { timer: 1, focus: 2 };
+
+/* { limits, focus, cats, day }: today's time includes the session being timed right now */
+async function blockState() {
+  const d = await chrome.storage.local.get(["v1", ...BLOCK_KEYS, ...CAT_KEYS]);
+  const day = (d.v1 || {})[dayKey()] || blankDay();
+  const cur = await getSession();
+  if (cur && cur.start) {
+    const e = day.domains[cur.domain] || (day.domains[cur.domain] = { s: 0, v: 0 });
+    e.s += Math.min(Date.now() - cur.start, MAX_CREDIT_MS) / 1000;
+  }
+  return { limits: d.limits || {}, focus: d.focus || null, cats: catsFrom(d), day };
+}
+
+/* Chrome's block rules: sites whose timer ran out, and the sites in Focus mode's categories.
+   Only whole pages are cancelled (main_frame), so a video embedded on another site still plays.
+   Focus mode lists every known site in its categories and spares more specific ones that belong
+   elsewhere (aws.amazon.com is Work, amazon.com is Shopping); sites it only knows by a guess
+   are caught when their tab opens (pauseTabs). */
+function blockRules({ limits, focus, cats, day }, now = Date.now()) {
+  const rule = (id, domains, spared) => ({ id, priority: 1, action: { type: "block" },
+    condition: { requestDomains: domains, resourceTypes: ["main_frame"],
+                 ...(spared.length ? { excludedRequestDomains: spared } : {}) } });
+  const rules = [];
+  const done = Object.keys(limits).filter(site => siteUsed(day, site) >= limits[site]).sort();
+  if (done.length) rules.push(rule(RULE_IDS.timer, done, []));
+  if (focusActive(focus, now)) {
+    const paused = focusCats(focus, cats);
+    const known = [...new Set([...Object.keys(BUILTIN_CATS), ...Object.keys(cats.map)])].sort();
+    const hit = known.filter(d => paused.includes(catFor(d, cats)));
+    const spared = known.filter(d => !hit.includes(d) && hit.some(h => underSite(d, h)));
+    if (hit.length) rules.push(rule(RULE_IDS.focus, hit, spared));
+  }
+  return rules;
+}
+
+/* Rules stop new page loads; tabs already open on a paused site go to the paused page, the way
+   Android closes an app when its timer runs out. */
+async function pauseTabs(state, now) {
+  for (const tab of await chrome.tabs.query({}).catch(() => [])) {
+    const url = tab.pendingUrl || tab.url || "";
+    const domain = domainOf(url);
+    if (domain && blockReason(domain, state, now)) {
+      await chrome.tabs.update(tab.id, { url: chrome.runtime.getURL(`${PAUSED_PAGE}?u=${encodeURIComponent(url)}`) })
+        .catch(() => {});
+    }
+  }
+}
+
+let ruleSig = null;   // the rules last given to Chrome, so unchanged rules aren't rewritten
+async function applyBlocks() {
+  const now = Date.now(), state = await blockState();
+  const rules = blockRules(state, now), sig = JSON.stringify(rules);
+  if (sig !== ruleSig) {
+    const old = await chrome.declarativeNetRequest.getSessionRules();
+    await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: old.map(r => r.id), addRules: rules });
+    ruleSig = sig;
+  }
+  await pauseTabs(state, now);
+  /* wake exactly when the timer of the site being used runs out, not at the next minute tick */
+  const cur = await getSession();
+  const site = cur && cur.start && timerFor(cur.domain, state.limits);
+  const left = site ? state.limits[site] - siteUsed(state.day, site) : 0;
+  if (left > 0) chrome.alarms.create("limit", { when: now + left * 1000 });
+  else await chrome.alarms.clear("limit");
+  if (onBreak(state.focus, now)) chrome.alarms.create("focusBreak", { when: state.focus.breakUntil });
+  return state;
+}
+/* a break ended: clear it, which re-applies Focus mode through storage.onChanged */
+async function endBreak() {
+  const { focus } = await chrome.storage.local.get("focus");
+  if (focus && focus.breakUntil && focus.breakUntil <= Date.now()) {
+    await chrome.storage.local.set({ focus: { ...focus, breakUntil: null } });
+  }
+}
+
+const resync = () => serial(async () => { await sync(); await applyBlocks(); });
 chrome.tabs.onActivated.addListener(resync);
 chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
   if (info.audible !== undefined || (tab.active && info.url)) resync();   // any tab starting/stopping sound
+  else if (info.url) serial(applyBlocks);    // a background tab opening a paused site
+});
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === "local" && [...BLOCK_KEYS, ...CAT_KEYS].some(k => k in changes)) serial(applyBlocks);
 });
 chrome.tabs.onRemoved.addListener(resync);
 chrome.windows.onFocusChanged.addListener(resync);
 chrome.idle.onStateChanged.addListener(resync);
 chrome.runtime.onStartup.addListener(resync);
-chrome.alarms.onAlarm.addListener(a => { if (a.name === "tick") serial(tick); });
+chrome.alarms.onAlarm.addListener(a => {
+  if (a.name === "tick" || a.name === "limit") serial(async () => { await tick(); await applyBlocks(); });
+  if (a.name === "focusBreak") serial(endBreak);
+});
 /* create once; re-creating on every worker start would keep resetting the timer */
 chrome.alarms.get("tick").then(a => { if (!a) chrome.alarms.create("tick", { periodInMinutes: 1 }); });
 
@@ -179,6 +266,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse({ build: TL_BUILD, domain: cur.domain, tracking: !!cur.start, bg: !!(cur.start && cur.bg), elapsed,
                      visitMs: (cur.visitMs || 0) + elapsed, why: cur.start ? null : cur.why || null });
     });
+    return true;
+  }
+  /* the paused page asks why its site is paused, after any pending change has been applied */
+  if (msg && msg.type === "whyPaused") {
+    serial(async () => {
+      const state = await applyBlocks();
+      sendResponse({ build: TL_BUILD, reason: blockReason(msg.domain, state), focus: state.focus });
+    }).catch(() => sendResponse(null));
     return true;
   }
 });

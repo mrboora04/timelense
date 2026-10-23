@@ -27,6 +27,22 @@
     <details id="driftMore"><summary>All drifts today</summary><ol id="driftList" class="timeline"></ol></details>
   </section>
 
+  <section class="focus" aria-labelledby="focusLabel">
+    <div class="focus-head">
+      <div class="focus-text">
+        <h2 id="focusLabel" class="focus-title">Focus mode</h2>
+        <p id="focusStatus" class="meta"></p>
+      </div>
+      <button id="focusSwitch" class="switch" role="switch" aria-checked="false" aria-labelledby="focusLabel"></button>
+    </div>
+    <div id="focusBreak"></div>
+    <details class="more">
+      <summary>Sites to pause</summary>
+      <div id="focusCats" class="chips" role="group" aria-label="Categories Focus mode pauses"></div>
+      <p class="meta">Pauses every site in these categories. Change a site's category under Sites.</p>
+    </details>
+  </section>
+
   <details class="more">
     <summary>Sites <span class="meta" id="sitesCount"></span></summary>
     <ul id="siteRows" class="rows"></ul>

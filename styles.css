@@ -13,7 +13,7 @@
   --green-400:#4ade80; --red-400:#f87171; --amber-400:#fbbf24;
 
   --space-0-5:2px; --space-1:4px; --space-1-5:6px; --space-2:8px; --space-3:12px;
-  --space-4:16px; --space-5:20px; --space-6:24px; --space-8:32px; --space-11:44px;
+  --space-4:16px; --space-5:20px; --space-6:24px; --space-8:32px; --space-11:44px; --space-16:64px;
   --size-xs:11px; --size-sm:12px; --size-base:13px; --size-md:15px; --size-xl:32px; --size-2xl:44px;
   --radius-2:6px; --radius-3:10px; --radius-round:999px;
   --line-1:1px; --line-2:2px; --line-3:3px;
@@ -56,6 +56,11 @@
   --lens-glass:var(--grey-950); --lens-eye:var(--grey-50); --lens-pupil:var(--grey-950); --lens-line:var(--grey-50);
   --lens-spark:var(--color-warning); --lens-drop:var(--grey-400); --lens-z:var(--color-text-muted);
   --lens-handle-width:7;  --lens-line-width:2.2;
+  --switch-width:var(--space-11); --switch-height:var(--space-6); --switch-knob:var(--space-4);
+  --switch-track-off:var(--color-sunken); --switch-knob-off:var(--color-text-muted);
+  --switch-track-on:var(--color-text); --switch-knob-on:var(--color-bg);
+  --timer-up:var(--color-danger); --paused-dim:.4;
+  --lens-size-lg:var(--space-16); --paused-width:420px;
   --popup-width:340px; --chart-height:112px; --chart-bar-max:24px;   /* dataviz: columns <= 24px */
 
 }
@@ -215,3 +220,39 @@ details[open] summary::after{content:"–"}
 .inline-edit:focus-visible{border-color:var(--color-text)}
 .inline-edit[aria-invalid="true"]{border-color:var(--color-danger)}
 .field-error{flex-basis:100%;font-size:var(--font-size-sm);color:var(--color-danger)}
+
+/* ---------- site timers (Sites rows) ---------- */
+.row .chips{order:1}   /* choices open below the row's buttons */
+.row .chips .meta{flex-basis:100%;white-space:normal}
+.choice.timer.is-up{color:var(--timer-up);border-color:var(--timer-up)}
+.timer-mins{inline-size:calc(2 * var(--space-11))}
+.row.is-paused img{opacity:var(--paused-dim)}   /* dimmed, like a paused app's icon on Android */
+.row.is-paused .row-main{color:var(--color-text-muted)}
+
+/* ---------- Focus mode ---------- */
+.focus{display:grid;gap:var(--spacing-sm)}
+.focus-head{display:flex;align-items:center;gap:var(--spacing-md)}
+.focus-text{flex:1;min-inline-size:0;display:grid}
+.focus-title{font-size:var(--font-size-md);font-weight:var(--font-weight-semibold)}
+.break-label{align-self:center;margin-inline-end:var(--spacing-xs)}
+.switch{position:relative;flex:none;inline-size:var(--switch-width);block-size:var(--target-min)}
+.switch::before{content:"";position:absolute;inset-inline:0;inset-block-start:50%;translate:0 -50%;block-size:var(--switch-height);
+  border:var(--border-width-thin) solid var(--color-text-muted);border-radius:var(--radius-full);background:var(--switch-track-off);
+  transition:background-color var(--duration-fast) var(--ease-out),border-color var(--duration-fast) var(--ease-out)}
+.switch::after{content:"";position:absolute;inset-inline-start:var(--spacing-xs);inset-block-start:50%;translate:0 -50%;
+  inline-size:var(--switch-knob);block-size:var(--switch-knob);border-radius:var(--radius-full);background:var(--switch-knob-off);
+  transition:translate var(--duration-fast) var(--ease-out)}
+.switch[aria-checked="true"]::before{background:var(--switch-track-on);border-color:var(--switch-track-on)}
+.switch[aria-checked="true"]::after{background:var(--switch-knob-on);
+  translate:calc(var(--switch-width) - var(--switch-knob) - 2 * var(--spacing-xs)) -50%}
+
+/* ---------- paused page (blocked.html) ---------- */
+.paused{min-block-size:100vh;display:grid;place-items:center;padding:var(--spacing-xl)}
+.paused-main{display:grid;gap:var(--spacing-lg);inline-size:100%;max-inline-size:var(--paused-width)}
+.paused .lens{inline-size:var(--lens-size-lg);block-size:var(--lens-size-lg)}
+.paused-site{display:flex;align-items:center;gap:var(--spacing-md)}
+.paused-site img{inline-size:var(--spacing-xl);block-size:var(--spacing-xl)}
+.paused-site h1{font-size:var(--font-size-display-sm);font-weight:var(--font-weight-heavy);line-height:var(--line-height-tight);overflow-wrap:anywhere}
+.paused-main > .meta{font-size:var(--font-size-md)}
+.paused-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--spacing-sm) var(--spacing-lg)}
+.paused-actions .chips{padding-block:0}

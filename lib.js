@@ -62,7 +62,7 @@ const CAT_KEYS = ["catList", "catMap", "catAlias"];
 /* Bump with every change. Chrome reloads the dashboard's files from disk on their own, but
    keeps running the old background worker until the extension is reloaded; the pages
    compare this number with the worker's to notice that and offer a reload. */
-const TL_BUILD = 150;
+const TL_BUILD = 160;
 
 const pad = n => String(n).padStart(2, "0");
 function dayKey(d = new Date()) {
@@ -91,7 +91,7 @@ function resolveCat(cat, cats) {
 }
 const BUILTIN_NAMES = [...new Set([...Object.values(BUILTIN_CATS), "Other"])];
 /* Storage updates for renaming category `from` to `to`, or null if the rename isn't valid. */
-function renameCategory(cats, targets, challenge, from, to) {
+function renameCategory(cats, targets, challenge, from, to, focus = null) {
   to = (to || "").trim();
   if (!to || to === from || !cats.list.includes(from) || cats.list.includes(to)) return null;
   const swap = c => (c === from ? to : c);
@@ -106,6 +106,7 @@ function renameCategory(cats, targets, challenge, from, to) {
   for (const c in targets) t[swap(c)] = targets[c];
   const upd = { catList: cats.list.map(swap), catMap, catAlias, targets: t };
   if (challenge && challenge.cat === from) upd.challenge = { ...challenge, cat: to };
+  if (focus && focus.cats && focus.cats.includes(from)) upd.focus = { ...focus, cats: focus.cats.map(swap) };
   return upd;
 }
 /* Your pick first, then the built-in list (most specific domain wins:
@@ -212,6 +213,51 @@ function findDrifts(entries, cats, now = Date.now()) {
     if (live) ongoing = cur;
   }
   return { drifts, ongoing, streak: live && siteKind(last.d, cats) === "focus" ? streak : 0 };
+}
+
+/* ---------- site timers and Focus mode (Android Digital Wellbeing style) ---------- */
+/* limits: { site: daily seconds }; a timer covers the site and its subdomains, resets at midnight.
+   focus: { on, cats: categories it pauses (missing = the distracting ones), breakUntil: ms or null } */
+const BLOCK_KEYS = ["limits", "focus"];
+const TIMER_MINS = [15, 30, 60, 120];
+const BREAK_MINS = [5, 15, 30];
+/* a timer length in minutes, as people say it: 15 min, 2 h, 1h 30m */
+const minsLabel = m => (m < 60 ? `${m} min` : m % 60 ? fmt(m * 60) : `${m / 60} h`);
+const underSite = (domain, site) => domain === site || domain.endsWith("." + site);
+/* seconds spent on a site and its subdomains in one day */
+function siteUsed(day, site) {
+  let s = 0;
+  for (const d in day.domains) if (underSite(d, site)) s += day.domains[d].s;
+  return s;
+}
+/* the timer that covers domain, most specific first (m.youtube.com, then youtube.com), or null */
+function timerFor(domain, limits) {
+  for (let d = domain; d; ) {
+    if (limits[d]) return d;
+    const i = d.indexOf(".");
+    d = i < 0 ? "" : d.slice(i + 1);
+  }
+  return null;
+}
+function focusCats(focus, cats) {
+  return (focus && focus.cats) || DISTRACT_CATS.map(c => resolveCat(c, cats));
+}
+const onBreak = (focus, now = Date.now()) => !!(focus && focus.on && focus.breakUntil > now);
+const focusActive = (focus, now = Date.now()) => !!(focus && focus.on) && !onBreak(focus, now);
+/* Why a domain is paused right now, or null.
+   state: { limits, focus, cats, day: today with the live session added }
+   -> { kind: "timer", site, limit, used } or { kind: "focus", cat } */
+function blockReason(domain, { limits = {}, focus, cats, day }, now = Date.now()) {
+  const site = timerFor(domain, limits);
+  if (site) {
+    const used = siteUsed(day, site);
+    if (used >= limits[site]) return { kind: "timer", site, limit: limits[site], used };
+  }
+  if (focusActive(focus, now)) {
+    const cat = catFor(domain, cats);
+    if (focusCats(focus, cats).includes(cat)) return { kind: "focus", cat };
+  }
+  return null;
 }
 
 function timeOf(ms) {
