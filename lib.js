@@ -62,7 +62,7 @@ const CAT_KEYS = ["catList", "catMap", "catAlias"];
 /* Bump with every change. Chrome reloads the dashboard's files from disk on their own, but
    keeps running the old background worker until the extension is reloaded; the pages
    compare this number with the worker's to notice that and offer a reload. */
-const TL_BUILD = 171;
+const TL_BUILD = 180;
 
 const pad = n => String(n).padStart(2, "0");
 function dayKey(d = new Date()) {
@@ -266,22 +266,34 @@ function timeOf(ms) {
 }
 /* What Lens (the mascot) looks like and says. Plain text; the UI escapes it. */
 function mascotMood({ onSite, tracking, total, drift, streak, why, bg }) {
-  if (!onSite) return { mood: "happy", text: "Open a website and I'll start counting." };
-  if (!tracking) return { mood: "sleep", text: `Paused: ${why || "waiting for activity"}. I'll wait right here.` };
-  if (bg) return { mood: "happy", text: "Counting what's playing in the background." };
-  if (drift && !drift.from) {
-    return drift.secs >= 15 * 60
-      ? { mood: "worried", text: `${fmt(drift.secs)} on ${drift.sites.slice(-2).join(", ")} since ${timeOf(drift.leftAt)}. Break time?` }
-      : { mood: "curious", text: `You started on ${drift.sites[0]} ${fmt(drift.secs)} ago. On purpose?` };
+  const amt = total < 3600 ? "light" : total < 4 * 3600 ? "usual" : "heavy";
+  const say = (mood, key, slots, text) => ({ mood, text, say: key, slots, amt });
+  if (!onSite) return say("happy", "idle", {}, "Open a website and I'll start counting.");
+  if (!tracking) {
+    why = why || "waiting for activity";
+    return say("sleep", "paused", { why }, `Paused: ${why}. I'll wait right here.`);
   }
-  if (drift && drift.secs >= 15 * 60) {
-    return { mood: "worried",
-      text: `You left ${drift.from} at ${timeOf(drift.leftAt)}. ${fmt(drift.secs)} later you're on ${drift.sites[drift.sites.length - 1]}. Still on track?` };
+  if (bg) return say("happy", "bg", {}, "Counting what's playing in the background.");
+  if (drift) {
+    const dur = fmt(drift.secs), at = timeOf(drift.leftAt), from = drift.from;
+    const long = drift.secs >= 15 * 60, site = drift.sites[drift.sites.length - 1];
+    if (!from && long) {
+      const sites = drift.sites.slice(-2).join(", ");
+      return say("worried", "doom", { dur, sites, at }, `${dur} on ${sites} since ${at}. Break time?`);
+    }
+    if (!from) {
+      const site = drift.sites[0];
+      return say("curious", "start", { site, dur }, `You started on ${site} ${dur} ago. On purpose?`);
+    }
+    if (long) {
+      return say("worried", "drift_long", { from, at, dur, site },
+        `You left ${from} at ${at}. ${dur} later you're on ${site}. Still on track?`);
+    }
+    return say("curious", "drift", { from }, `Wandered off ${from}? It's one click away.`);
   }
-  if (drift) return { mood: "curious", text: `Wandered off ${drift.from}? It's one click away.` };
-  if (streak >= 25 * 60) return { mood: "proud", text: `${fmt(streak)} of focus in a row. Nice!` };
-  if (total < 120) return { mood: "wave", text: "Hi, I'm Lens! I'll keep an eye on where your time goes." };
-  return { mood: "happy", text: `All good. ${fmt(total)} browsed today.` };
+  if (streak >= 25 * 60) return say("proud", "streak", { dur: fmt(streak) }, `${fmt(streak)} of focus in a row. Nice!`);
+  if (total < 120) return say("wave", "hello", {}, "Hi, I'm Lens! I'll keep an eye on where your time goes.");
+  return say("happy", "ok", { total: fmt(total) }, `All good. ${fmt(total)} browsed today.`);
 }
 
 function fmt(s) {

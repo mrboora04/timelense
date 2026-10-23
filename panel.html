@@ -70,6 +70,13 @@
 </main>
 
 <footer class="foot">
+  <div class="focus-head">
+    <div class="focus-text">
+      <h2 id="talkLabel" class="focus-title">Lens's own words</h2>
+      <p class="meta">A tiny model on this PC writes what Lens says. Off, Lens uses its usual lines.</p>
+    </div>
+    <button id="talkSwitch" class="switch" role="switch" aria-checked="true" aria-labelledby="talkLabel"></button>
+  </div>
   <div id="footActions" class="foot-row">
     <button id="exportBtn" class="quiet">Export data</button>
     <button id="resetBtn" class="quiet danger">Delete all data</button>
@@ -86,6 +93,7 @@
 
 <script src="lib.js"></script>
 <script src="lens.js"></script>
+<script src="talk.js"></script>
 <script src="ui.js"></script>
 <script src="usage.js"></script>
 <script src="panel.js"></script>

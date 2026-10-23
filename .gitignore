@@ -15,3 +15,8 @@ node_modules/
 
 # build output
 dist/
+
+# Lens model training: local Python env and ONNX check output (model/lens.bin is committed)
+model/.venv/
+model/out/
+__pycache__/

@@ -15,7 +15,7 @@ const total = (list, size = f => statSync(f).size) => list.reduce((a, f) => a + 
 const gz = f => gzipSync(readFileSync(f), { level: 9 }).length;
 
 const code = readdirSync(".").filter(f => /\.(js|css|html)$/.test(f) && f !== "build.mjs");
-const sources = [...code, "manifest.json", ...filesIn("icons")];
+const sources = [...code, "manifest.json", ...filesIn("icons"), "model/lens.bin"];
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT);
 
@@ -31,6 +31,8 @@ for (const f of code) {
 }
 writeFileSync(join(OUT, "manifest.json"), JSON.stringify(JSON.parse(readFileSync("manifest.json", "utf8"))));
 cpSync("icons", join(OUT, "icons"), { recursive: true });
+mkdirSync(join(OUT, "model"));
+cpSync("model/lens.bin", join(OUT, "model/lens.bin"));   // Lens's own words (talk.js)
 
 const built = filesIn(OUT);
 console.log(`dist/ built: ${kb(total(sources))} -> ${kb(total(built))}` +

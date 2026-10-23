@@ -7,13 +7,29 @@ TimeLens is a small Chrome extension (about 32 KB gzipped, no dependencies at ru
 - **Popup:** Lens the mascot, today's total, a category breakdown and the site you're on, with a live timer.
 - **Side panel:** today's total with the change vs yesterday, the site you're on, your drift timeline, and (collapsed) every site today and your categories. At the bottom, **Usage** works like iPhone Screen Time or Android Digital Wellbeing: a Day / Week switch, ‹ › back through the last 30 days, columns split into focus, distracting and other by hour or by day, your daily average, and your most used sites. Tap a site for its own detail: its daily average over the last week, a 7-day chart, its visits and the hour you usually use it.
 - **Site timers and Focus mode:** a daily timer on any site, set in its row under Sites, and a Focus mode switch that pauses distracting sites, with 5, 15 or 30 minute breaks.
-- **Lens:** a small mascot whose face and message follow your state: waving, happy, proud of a focus streak, curious when you wander, worried when you're doomscrolling, asleep when paused.
+- **Lens:** a small mascot whose face and message follow your state: waving, happy, proud of a focus streak, curious when you wander, worried when you're doomscrolling, asleep when paused. What Lens says is written on your PC by Lens's own tiny model (see below), and Lens's speech bubble takes the place of a phone's per-app notifications.
 
 ## Design
 Minimal and black and white. The side panel leads with one number (today's total), then the site you're on and your drift. Everything else sits in collapsed sections. Colour is used only for status: green while tracking, amber for drift, red for delete. Categories are shades of grey, and every chart has a text alternative for screen readers. The design follows a skills library: design-critique, accessibility-review (WCAG 2.1 AA), ux-copy, theming-components, designing-layouts and the character-animation skills. See `docs/ui-audit.md` for the before-and-after.
 
 ## Drift
 TimeLens records the order you move between sites (`trail`, kept for 2 days). A **drift** is 5+ minutes on distracting sites (Social, Entertainment, News, Shopping), whether you left a focus site (Work, Learning) for it or started the day there. It ends when you're back on a focus site or after a 10-minute break. The side panel shows a strip of today's path and a timeline of each drift: when it started, the chain of sites, how long it lasted, and whether you came back. While a drift is happening, Lens reminds you where you left off. There are no pop-up notifications.
+
+## Lens's own words
+Lens's one-liners come from a tiny language model trained only on Lens-style lines: a 2-layer GPT with about 37k parameters (d=32), stored as int8 weights in `model/lens.bin` (47 KB). `talk.js` runs it in plain JavaScript (no ONNX Runtime, no WebGPU, no network), right in the popup and side panel.
+
+- **Once per situation:** Lens writes a new line only when its situation changes (paused, drifting, a focus streak, and so on). The line is kept in session memory, so the popup and side panel agree.
+- **Live values:** the model writes slots such as `{site}` and `{dur}`, never real site names or numbers; TimeLens fills them in on every render, so the numbers stay current and the model never sees your data.
+- **Checks:** a line has to be one short sentence (90 characters at most) that uses only the values its situation has. Otherwise, or with no model, Lens uses its usual fixed line.
+- **Off switch:** **Lens's own words** at the bottom of the side panel. Off, Lens goes back to its fixed lines and the model isn't loaded.
+
+To teach Lens new lines, add them to `model/data.py` and retrain (needs Python 3 and CPU PyTorch, about a minute):
+```bash
+python -m venv model/.venv
+model/.venv/Scripts/python -m pip install torch numpy --index-url https://download.pytorch.org/whl/cpu
+model/.venv/Scripts/python model/train.py --d 32 --heads 2 --steps 3000
+```
+This rewrites `model/lens.bin` and `model/check.json` (greedy outputs the JS runtime must reproduce in `test/talk.test.js`). `--onnx` also exports `model/out/lens.onnx` and checks it with onnxruntime, for trying the model in other tools.
 
 ## Site timers and Focus mode
 These work like Android Digital Wellbeing's app timers and Focus mode.
@@ -52,6 +68,8 @@ A **visit** is counted when you land on a different site or tab. Returning to th
 | `usage.js` | The Usage day / week view at the bottom of the side panel |
 | `ui.js` | Shared UI: category buttons, the "now" row, charts with text alternatives, drift timeline |
 | `lens.js` | Lens the mascot: rig data, pose library, mood transitions |
+| `talk.js` | Lens's own words: runs the tiny model in `model/lens.bin`, checks its lines, falls back to the fixed ones |
+| `model/` | Training data (`data.py`) and script (`train.py`) for Lens's model; not part of the extension except `lens.bin` |
 | `popup.html/js` | Toolbar popup |
 | `panel.html/js` | Side-panel dashboard |
 | `blocked.html/js` | The paused page shown in place of a site whose timer ran out or that Focus mode pauses |
@@ -66,6 +84,8 @@ A **visit** is counted when you land on a different site or tab. Returning to th
 - `catList`, `catMap` (your per-site picks), `catAlias` (category renames), `seen`
 - `limits`: `{ "youtube.com": seconds a day }`, your site timers
 - `focus`: `{ on, cats: [categories it pauses], breakUntil: ms or null }`
+- `lensTalk`: `false` when Lens's own words are switched off
+- `lensSaid` (session storage, memory only): Lens's current line and the situation it was written for
 
 Use **Export JSON** in the side panel to back it up.
 
@@ -73,4 +93,4 @@ Use **Export JSON** in the side panel to back it up.
 ```bash
 npm test
 ```
-The tests run `background.js`, `lib.js` and `lens.js` (rig and pose checks) against a fake `chrome` API (`test/fake-chrome.js`). Node 18+ needed; there are no dependencies.
+The tests run `background.js`, `lib.js`, `lens.js` (rig and pose checks) and `talk.js` (the model's output matches training, lines pass the checks, fallbacks work) against a fake `chrome` API (`test/fake-chrome.js`). Node 18+ needed; there are no dependencies.

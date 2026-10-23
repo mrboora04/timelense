@@ -17,7 +17,7 @@ function showStale(live) { $("staleNote").hidden = !workerStale(live); }
 $("reloadBtn").onclick = () => chrome.runtime.reload();
 
 async function render() {
-  const store = await chrome.storage.local.get(["v1", "challenge", "trail", "pages", ...CAT_KEYS, ...BLOCK_KEYS]);
+  const store = await chrome.storage.local.get(["v1", "challenge", "trail", "pages", "lensTalk", ...CAT_KEYS, ...BLOCK_KEYS]);
   setFaviconPages(store.pages);
   const v = store.v1 || {};
   const cats = catsFrom(store);
@@ -39,8 +39,9 @@ async function render() {
   const drift = driftState(store.trail, cats);
   const now = renderNow($("nowBox"), tab, live, day, cats);
   liveBase = { ...now, total, at: Date.now() };
-  renderMascot($("mascot"), mascotMood({ onSite: !!now.domain, tracking: now.tracking, total,
-    drift: drift.ongoing, streak: drift.streak, why: live && live.why, bg: live && live.bg }));
+  renderMascot($("mascot"), await lensSays(mascotMood({ onSite: !!now.domain, tracking: now.tracking, total,
+    drift: drift.ongoing, streak: drift.streak, why: live && live.why, bg: live && live.bg })));
+  $("talkSwitch").setAttribute("aria-checked", String(store.lensTalk !== false));
   renderDriftList($("driftSum"), $("driftList"), $("driftMore"), drift.drifts);
   renderPath($("pathStrip"), $("pathLabels"), store.trail, cats);
   renderUsage(v, cats);
@@ -261,6 +262,11 @@ $("resetConfirm").addEventListener("keydown", e => { if (e.key === "Escape") ask
 $("resetYes").onclick = async () => {
   await chrome.storage.local.clear();
   askReset(false);
+};
+/* Lens's own words (talk.js) on or off; off, Lens uses its fixed lines */
+$("talkSwitch").onclick = async () => {
+  const { lensTalk } = await chrome.storage.local.get("lensTalk");
+  await chrome.storage.local.set({ lensTalk: lensTalk === false });
 };
 $("ver").textContent = `Stays on this PC · v${chrome.runtime.getManifest().version}`;
 
