@@ -62,7 +62,7 @@ const CAT_KEYS = ["catList", "catMap", "catAlias"];
 /* Bump with every change. Chrome reloads the dashboard's files from disk on their own, but
    keeps running the old background worker until the extension is reloaded; the pages
    compare this number with the worker's to notice that and offer a reload. */
-const TL_BUILD = 141;
+const TL_BUILD = 142;
 
 const pad = n => String(n).padStart(2, "0");
 function dayKey(d = new Date()) {
@@ -172,7 +172,7 @@ function trailSegments(entries, now = Date.now()) {
   const segs = [];
   entries.forEach((e, i) => {
     const end = i + 1 < entries.length ? entries[i + 1].t : now;
-    if (e.d && end > e.t) segs.push({ d: e.d, start: e.t, end, open: i === entries.length - 1 });
+    if (e.d && end > e.t) segs.push({ d: e.d, start: e.t, end, open: i === entries.length - 1, bg: !!e.b });
   });
   return segs;
 }
@@ -183,6 +183,7 @@ function findDrifts(entries, cats, now = Date.now()) {
   const keep = d => d.secs >= (d.from ? DRIFT_MIN_SECS : DOOM_MIN_SECS);
   const close = () => { if (cur && keep(cur)) drifts.push(cur); cur = null; };
   for (const s of segs) {
+    if (s.bg) continue;   // music playing while you work elsewhere isn't a drift
     const secs = (s.end - s.start) / 1000;
     if ((s.start - lastEnd) / 1000 > BREAK_SECS) { close(); anchor = null; streak = 0; }
     const kind = siteKind(s.d, cats);
@@ -217,9 +218,10 @@ function timeOf(ms) {
   return new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 /* What Lens (the mascot) looks like and says. Plain text; the UI escapes it. */
-function mascotMood({ onSite, tracking, total, drift, streak, why }) {
+function mascotMood({ onSite, tracking, total, drift, streak, why, bg }) {
   if (!onSite) return { mood: "happy", text: "Open a website and I'll start counting." };
   if (!tracking) return { mood: "sleep", text: `Paused: ${why || "waiting for activity"}. I'll wait right here.` };
+  if (bg) return { mood: "happy", text: "Counting what's playing in the background." };
   if (drift && !drift.from) {
     return { mood: "worried", text: `${fmt(drift.secs)} of scrolling on ${drift.sites.slice(-2).join(", ")}. Break time?` };
   }

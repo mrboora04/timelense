@@ -59,6 +59,14 @@ test("long scrolling with no focus site before it counts as doomscrolling", () =
   assert.equal(ongoing.secs, 25 * 60);
 });
 
+test("background music while working elsewhere is not a drift", () => {
+  const entries = trail([[0, "github.com"], [10, "youtube.com"]]);
+  entries[1].b = 1;
+  const { drifts, ongoing } = L.findDrifts(entries, cats, T0 + 60 * MIN);
+  assert.equal(drifts.length, 0);
+  assert.equal(ongoing, null);
+});
+
 test("focus streak counts the current run of focus time", () => {
   const { streak } = L.findDrifts(trail([[0, "github.com"], [20, "stackoverflow.com"]]), cats, T0 + 30 * MIN);
   assert.equal(streak, 30 * 60);

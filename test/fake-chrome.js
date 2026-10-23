@@ -44,7 +44,7 @@ function makeChrome(world, ev) {
     storage: { local: area(world.local, world), session: area(world.session) },
     idle: { setDetectionInterval() {}, queryState: async () => world.idle, onStateChanged: ev.idle },
     tabs: {
-      query: async () => clone(world.tabs.filter(t => t.active)),
+      query: async (q = {}) => clone(world.tabs.filter(t => (q.audible ? t.audible : t.active))),
       get: async id => clone(world.tabs.find(t => t.id === id)),
       onActivated: ev.tabsAct, onUpdated: ev.tabsUpd, onRemoved: ev.tabsRem,
     },

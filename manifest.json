@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TimeLens",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "Local-only browser time tracker. Live page time, drift detection and categories. Your data never leaves this PC.",
   "minimum_chrome_version": "116",
   "icons": { "16": "icons/i16.png", "48": "icons/i48.png", "128": "icons/i128.png" },

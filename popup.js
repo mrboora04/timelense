@@ -23,7 +23,7 @@ async function renderPopup() {
   const now = renderNow($("pNow"), tab, live, day, cats);
   liveBase = { ...now, total, at: Date.now() };
   renderMascot($("pMascot"), mascotMood({ onSite: !!now.domain, tracking: now.tracking, total,
-    drift: drift.ongoing, streak: drift.streak, why: live && live.why }));
+    drift: drift.ongoing, streak: drift.streak, why: live && live.why, bg: live && live.bg }));
 }
 
 /* sidePanel.open needs the click's user gesture, so the window id is fetched up front:

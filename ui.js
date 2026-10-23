@@ -109,7 +109,7 @@ function renderNow(box, tab, live, day, cats) {
   patch(box, `<div class="now"><img src="${favicon(domain)}" alt="">
      <div class="now-main"><b class="dom">${esc(domain)}</b>
        <span class="meta">${tracking
-         ? `<span class="rec" aria-hidden="true"></span><span class="visitT"></span> this visit · <span class="siteT"></span> today`
+         ? `<span class="rec" aria-hidden="true"></span><span class="visitT"></span> ${live.bg ? "playing in the background" : "this visit"} · <span class="siteT"></span> today`
          : `Paused — ${esc((live && live.why) || "waiting for activity")} · <span class="siteT"></span> today`}</span></div>
      ${unsorted ? "" : `<span class="cat-label"><i class="dot" style="background:${colorFor(cat, cats)}"></i>${esc(cat)}</span>`}</div>
    ${unsorted ? `<div class="sort-prompt"><p class="meta">Which category is ${esc(domain)}?</p>${chipsHTML(domain, cat, cats)}</div>` : ""}`);

@@ -176,6 +176,26 @@ test("the worker reports its build, so the pages can spot an outdated worker", a
   assert.equal(L.workerStale({ tracking: true }), true);      // a worker from before builds existed
 });
 
+test("music playing in Chrome counts while another app is in front, as background time", async () => {
+  const w = makeWorld();
+  w.tabs = [{ id: 1, url: "https://github.com/a", active: true, audible: false },
+            { id: 2, url: "https://www.youtube.com/watch?v=1", active: false, audible: true }];
+  const wk = bootWorker(w);
+  await settle();
+  w.focused = false; wk.ev.focus.fire(-1); await settle();
+  w.now += MIN; wk.tick(); await settle();
+  const live = await wk.live();
+  assert.equal(live.domain, "youtube.com");
+  assert.equal(live.tracking, true);
+  assert.equal(live.bg, true);
+  assert.equal(stats(w, "youtube.com").s, 60);
+  const marks = Object.values(w.local.trail).flat();
+  assert.equal(marks[marks.length - 1].b, 1);          // drift detection can tell it apart
+  w.tabs[1].mutedInfo = { muted: true };                // muted: not listening any more
+  w.now += MIN; wk.tick(); await settle();
+  assert.equal((await wk.live()).tracking, false);
+});
+
 test("the tick alarm is created once across worker restarts", async () => {
   const w = makeWorld();
   bootWorker(w); await settle();

@@ -90,14 +90,19 @@ chrome.runtime.onConnect.addListener(port => {
 });
 
 const DEVTOOLS = "devtools";
-/* The active tab of the focused Chrome window; null when another app is in front or the
-   window is incognito (never recorded); DEVTOOLS when an undocked DevTools window is focused. */
+/* The active tab of the focused Chrome window; DEVTOOLS when an undocked DevTools window is
+   focused. When another app is in front, a tab playing sound (music, a video, a call) still
+   counts and is marked background; otherwise null. Incognito is never recorded. */
 async function focusedTab() {
   const w = await chrome.windows.getLastFocused({ populate: true, windowTypes: ["normal", "popup", "devtools"] })
     .catch(() => null);
-  if (!w || w.incognito || (!w.focused && !popupOpen)) return null;
-  if (w.type === "devtools") return w.focused ? DEVTOOLS : null;
-  return (w.tabs || []).find(t => t.active) || null;
+  if (w && !w.incognito && (w.focused || popupOpen)) {
+    if (w.type === "devtools") return w.focused ? DEVTOOLS : null;
+    return (w.tabs || []).find(t => t.active) || null;
+  }
+  const playing = (await chrome.tabs.query({ audible: true }).catch(() => []))
+    .filter(t => !t.incognito && !(t.mutedInfo && t.mutedInfo.muted));
+  return playing.length ? { ...playing[0], background: true } : null;
 }
 
 async function sync() {
@@ -117,8 +122,9 @@ async function sync() {
     : !domain ? "this tab isn't a website" : null;
   const cur = await getSession();
   const now = Date.now();
+  const bg = !!(tab && tab.background);
   const same = cur && tab && cur.tabId === tab.id && cur.domain === domain;
-  if (cur && cur.start && same) return; // same tab and site (e.g. in-app navigation): keep going
+  if (cur && cur.start && same && !!cur.bg === bg) return; // same tab and site (e.g. in-app navigation): keep going
 
   const ops = [];
   let mark = null;
@@ -129,10 +135,12 @@ async function sync() {
     if (!domain) mark = { d: null, t: Math.max(cur.start, now - trim) };
   }
   if (domain && !same) ops.push({ domain, visit: true });
-  if (domain) mark = { d: domain, t: now };    // started, switched or resumed
+  /* started, switched or resumed; b marks background audio so drift detection can skip it */
+  if (domain) mark = bg ? { d: domain, t: now, b: 1 } : { d: domain, t: now };
   const credited = await record(ops, mark, cur === null);
 
-  if (domain) await setSession({ tabId: tab.id, domain, start: now, visitMs: same ? cur.visitMs || 0 : 0 });
+  if (domain) await setSession({ tabId: tab.id, domain, start: now, bg,
+    visitMs: same ? (cur.visitMs || 0) + (cur.start ? credited[0] * 1000 : 0) : 0 });
   else if (cur && cur.start) await setSession({ ...cur, start: null, visitMs: (cur.visitMs || 0) + credited[0] * 1000, why });
   else if (!cur || cur.why !== why) await setSession({ ...(cur || {}), start: null, why });
 }
@@ -151,7 +159,7 @@ async function tick() {
 const resync = () => serial(sync);
 chrome.tabs.onActivated.addListener(resync);
 chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
-  if (tab.active && (info.url || info.audible !== undefined)) resync();
+  if (info.audible !== undefined || (tab.active && info.url)) resync();   // any tab starting/stopping sound
 });
 chrome.tabs.onRemoved.addListener(resync);
 chrome.windows.onFocusChanged.addListener(resync);
@@ -167,7 +175,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     getSession().then(cur => {
       if (!cur) return sendResponse({ build: TL_BUILD, tracking: false, domain: null });
       const elapsed = cur.start ? Math.min(Date.now() - cur.start, MAX_CREDIT_MS) : 0;
-      sendResponse({ build: TL_BUILD, domain: cur.domain, tracking: !!cur.start, elapsed,
+      sendResponse({ build: TL_BUILD, domain: cur.domain, tracking: !!cur.start, bg: !!(cur.start && cur.bg), elapsed,
                      visitMs: (cur.visitMs || 0) + elapsed, why: cur.start ? null : cur.why || null });
     });
     return true;

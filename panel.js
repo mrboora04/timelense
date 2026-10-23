@@ -39,7 +39,7 @@ async function render() {
   const now = renderNow($("nowBox"), tab, live, day, cats);
   liveBase = { ...now, total, at: Date.now() };
   renderMascot($("mascot"), mascotMood({ onSite: !!now.domain, tracking: now.tracking, total,
-    drift: drift.ongoing, streak: drift.streak, why: live && live.why }));
+    drift: drift.ongoing, streak: drift.streak, why: live && live.why, bg: live && live.bg }));
   renderDriftList($("driftSum"), $("driftList"), $("driftMore"), drift.drifts);
   renderPath($("pathStrip"), $("pathLabels"), store.trail, cats);
 
