@@ -62,7 +62,7 @@ const CAT_KEYS = ["catList", "catMap", "catAlias"];
 /* Bump with every change. Chrome reloads the dashboard's files from disk on their own, but
    keeps running the old background worker until the extension is reloaded; the pages
    compare this number with the worker's to notice that and offer a reload. */
-const TL_BUILD = 142;
+const TL_BUILD = 150;
 
 const pad = n => String(n).padStart(2, "0");
 function dayKey(d = new Date()) {

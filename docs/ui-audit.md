@@ -162,3 +162,28 @@ Naming does not follow `--{component}-{property}-{variant?}-{state?}` (theming-c
 | Lens QA (character-animation-qa) | revise | **pass**: rig schema tests, every pose rendered and reviewed, "worried" brows fixed (they read as angry), act-out frames sampled: distinct during anticipation, action and settle, identical during the hold |
 
 **Owner feedback applied:** minimal UI (Stat-Led, secondary sections collapsed), and plain black and white with colour only for status: green = tracking now, amber = drift, red = delete.
+
+---
+
+## v1.5 — Usage view and chart colours (dataviz skill)
+
+**Usage** (bottom of the side panel) is modeled on iPhone Screen Time and Android Digital Wellbeing, from their official help pages:
+
+| Phone feature | TimeLens |
+|---|---|
+| Screen Time Day / Week switch, swipe through past days | Day / Week switch, ‹ › through the last 30 days |
+| Daily average, change vs last week | Week view: daily average, % change, total |
+| Most used apps (Screen Time), time per website per day (Wellbeing: Chrome → Show sites) | Most used sites with time and a meter |
+| Times opened (Wellbeing), pickups and first pickup (Screen Time) | Visits per site and per day, first visit of the day |
+| Time-by-hour chart | 24 hourly columns, scaled so a full column is one hour |
+| App or site timers, Focus mode, Bedtime | Not built. Enforcing a limit means blocking pages, which needs new site permissions (proposed as a separate step) |
+
+**`dataviz` validator (`scripts/validate_palette.js`):**
+
+| Palette | Result |
+|---|---|
+| Six category greys used in v1.3–1.4 | **FAIL**: adjacent greys ΔE 6.1, under the hard normal-vision floor of 15 |
+| Replacement: focus / distracting / other (white, amber, grey) | Separation **PASS** for all pairs (ΔE ≥ 19), contrast **PASS**. Lightness band and chroma floor fail because white and grey have no hue, which is the owner's black-and-white choice; the legend and labels supply the secondary encoding the skill requires |
+| Usage columns: one series in one tone | No categorical palette needed (single series; the title names it) |
+
+Category identity is now carried by text everywhere (no grey dots), per "identity is never color alone".

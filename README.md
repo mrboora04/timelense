@@ -5,7 +5,7 @@
 TimeLens is a small Chrome extension (about 26 KB gzipped, no dependencies at runtime). It shows a live timer for the site you're on, sorts your day into categories, and draws a timeline of every time you slid from work into distraction, with Lens the mascot keeping you company. It runs 100% locally: data lives in `chrome.storage` on your PC and is never sent anywhere.
 
 - **Popup:** Lens the mascot, today's total, a category breakdown and the site you're on, with a live timer.
-- **Side panel:** today's total with the change vs yesterday, the site you're on, your drift timeline, and (collapsed) every site today and your categories.
+- **Side panel:** today's total with the change vs yesterday, the site you're on, your drift timeline, and (collapsed) every site today and your categories. At the bottom, **Usage** works like iPhone Screen Time or Android Digital Wellbeing: a Day / Week switch, ‹ › back through the last 30 days, time by hour or by day, your daily average, and your most used sites with visits.
 - **Lens:** a small mascot whose face and message follow your state: waving, happy, proud of a focus streak, curious when you wander, worried when you're doomscrolling, asleep when paused.
 
 ## Design
@@ -30,7 +30,7 @@ npm run build
 This writes a minified copy to `dist/` (about 56 KB, down from 75 KB; 26 KB gzipped). Load `dist/` in Chrome, or zip its contents for the Chrome Web Store. The source stays readable; only `dist/` is minified. `npm run test:dist` builds and runs the test suite against `dist/`.
 
 ## How time is counted
-Time counts only while **a website is the active tab in the focused Chrome window** and you are **active**: input within the last 60 seconds, or the tab is playing sound (video, call). Switching to another app, locking the screen or going idle pauses the timer. The background worker saves the elapsed time every minute. A gap longer than 2 minutes (for example the PC slept) is capped instead of credited in full.
+Time counts while **a website is the active tab in the focused Chrome window** and you are **active**: input within the last 60 seconds, or the tab is playing sound (video, call). A tab playing sound (music, a video) also counts while another app is in front; it's marked as background time and never counts as a drift. Otherwise switching to another app, locking the screen or going idle pauses the timer. The background worker saves the elapsed time every minute. A gap longer than 2 minutes (for example the PC slept) is capped instead of credited in full.
 
 A **visit** is counted when you land on a different site or tab. Returning to the same tab, or moving around inside one site, is not counted as a new visit.
 
@@ -40,6 +40,7 @@ A **visit** is counted when you land on a different site or tab. Returning to th
 | `manifest.json` | Extension config (Manifest V3) |
 | `background.js` | Service worker: decides what's being tracked and saves time |
 | `lib.js` | Shared logic: categories, drift detection, Lens's moods, formatting (used everywhere) |
+| `usage.js` | The Usage day / week view at the bottom of the side panel |
 | `ui.js` | Shared UI: category buttons, the "now" row, charts with text alternatives, drift timeline |
 | `lens.js` | Lens the mascot: rig data, pose library, mood transitions |
 | `popup.html/js` | Toolbar popup |

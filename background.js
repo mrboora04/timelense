@@ -46,6 +46,7 @@ async function record(ops, mark = null, fresh = false, when = new Date()) {
     const k = dayKey(when);
     const day = v[k] || blankDay();
     ops.forEach((o, i) => {
+      if (!day.first && (o.visit || credited[i])) day.first = when.getTime();   // first visit of the day
       const e = day.domains[o.domain] || { s: 0, v: 0 };
       e.s += credited[i];
       if (o.visit) e.v += 1;

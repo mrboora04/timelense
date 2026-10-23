@@ -33,7 +33,7 @@ async function render() {
   $("trend").textContent = diff === null
     ? (entries.length ? `${plural(entries.length, "site")} · ${plural(visits, "visit")}` : "Nothing tracked yet today.")
     : `${diff > 0 ? "↑" : "↓"} ${fmt(Math.abs(diff))} ${diff > 0 ? "more" : "less"} than yesterday at this time`;
-  renderStack($("catStack"), $("catLegend"), roll, total, cats);
+  renderStack($("catStack"), $("catLegend"), entries, total, cats);
 
   const drift = driftState(store.trail, cats);
   const now = renderNow($("nowBox"), tab, live, day, cats);
@@ -42,6 +42,7 @@ async function render() {
     drift: drift.ongoing, streak: drift.streak, why: live && live.why, bg: live && live.bg }));
   renderDriftList($("driftSum"), $("driftList"), $("driftMore"), drift.drifts);
   renderPath($("pathStrip"), $("pathLabels"), store.trail, cats);
+  renderUsage(v);
 
   $("sitesCount").textContent = entries.length ? `${entries.length} today` : "";
   patch($("siteRows"), entries.length
@@ -71,7 +72,7 @@ function showCatRows(focus = false) {
   if (!catState) return;
   const { cats, roll } = catState;
   const rows = [...cats.list].sort((a, b) => (roll[b] || {}).s - (roll[a] || {}).s).map(cat => cat === editing ? editRowHTML(cat) :
-    `<li class="row${(roll[cat] || {}).s ? "" : " is-empty"}"><i class="dot" style="background:${colorFor(cat, cats)}"></i>
+    `<li class="row${(roll[cat] || {}).s ? "" : " is-empty"}">
       <button class="quiet row-main" data-rename="${esc(cat)}" aria-label="Rename ${esc(cat)}">${esc(cat)}</button>
       <span class="meta">${fmt((roll[cat] || {}).s || 0)}</span></li>`);
   if (editing === NEW_CAT) rows.push(editRowHTML(NEW_CAT));

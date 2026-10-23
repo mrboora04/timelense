@@ -2,7 +2,6 @@
    Speed: every block is built as an HTML string and written only when it changed (patch),
    so a refresh with nothing new touches no DOM and re-requests no icons. Clicks go through
    one delegated listener instead of handlers rebuilt on every render. */
-const CHART_COLORS = 6;   // --chart-color-1..6 in styles.css
 const $ = id => document.getElementById(id);
 
 /* write html into el only if it differs from what's already there */
@@ -24,13 +23,12 @@ function scheduler(render, wait = 120) {
   return request;
 }
 
-/* category colour as a design token, never a raw hex */
-function colorFor(cat, cats) {
-  const other = resolveCat("Other", cats);
-  if (cat === other) return "var(--chart-color-other)";
-  const i = cats.list.filter(c => c !== other).indexOf(cat);
-  return i < 0 ? "var(--chart-color-other)" : `var(--chart-color-${(i % CHART_COLORS) + 1})`;
-}
+/* Charts encode what matters for drift, not each category: focus (Work, Learning),
+   distracting (Social, Entertainment, News, Shopping) and other. Three tones validated with
+   the dataviz skill's validate_palette.js (all pairs ΔE >= 19, all >= 3:1 on the track);
+   categories themselves are always named in text. */
+const KINDS = [["focus", "Focus"], ["distract", "Distracting"], ["neutral", "Other"]];
+const toneFor = kind => `var(--chart-${kind})`;
 async function activeTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true }).catch(() => []);
   return tab || null;
@@ -51,13 +49,11 @@ function rollup(entries, cats) {
 const openPickers = new Set();
 function chipsHTML(domain, cat, cats, open = true) {
   return `<div class="chips" role="group" aria-label="Category for ${esc(domain)}"${open ? "" : " hidden"}>${cats.list.map(c =>
-    `<button class="chip" data-domain="${esc(domain)}" data-cat="${esc(c)}" aria-pressed="${c === cat}"
-      style="--chip-color:${colorFor(c, cats)}">${esc(c)}</button>`).join("")}</div>`;
+    `<button class="chip" data-domain="${esc(domain)}" data-cat="${esc(c)}" aria-pressed="${c === cat}">${esc(c)}</button>`).join("")}</div>`;
 }
 function catToggleHTML(key, domain, cat, cats) {
   const open = openPickers.has(key);
-  return `<button class="choice" data-toggle="${esc(key)}" aria-expanded="${open}">
-      <i class="dot" style="background:${colorFor(cat, cats)}"></i>${esc(cat)}</button>${chipsHTML(domain, cat, cats, open)}`;
+  return `<button class="choice" data-toggle="${esc(key)}" aria-expanded="${open}">${esc(cat)}</button>${chipsHTML(domain, cat, cats, open)}`;
 }
 document.addEventListener("click", async e => {
   const t = e.target.closest("[data-toggle], [data-cat]");
@@ -74,16 +70,18 @@ document.addEventListener("click", async e => {
   }
 });
 
-/* category share as a stacked bar + text legend, with a text alternative */
-function renderStack(bar, legend, roll, total, cats) {
-  const parts = Object.entries(roll).filter(([, r]) => r.s > 0).sort((a, b) => b[1].s - a[1].s);
+/* focus / distracting / other share as a stacked bar, a legend and a text alternative */
+function renderStack(bar, legend, entries, total, cats) {
+  const sum = { focus: 0, distract: 0, neutral: 0 };
+  for (const [dom, e] of entries) sum[siteKind(dom, cats)] += e.s;
+  const parts = KINDS.filter(([k]) => sum[k] > 0);
   bar.hidden = legend.hidden = !parts.length;
   const pct = s => Math.round(s / total * 100);
   bar.setAttribute("role", "img");
-  bar.setAttribute("aria-label", "Today by category: " + parts.map(([c, r]) => `${c} ${pct(r.s)}%`).join(", "));
-  patch(bar, parts.map(([c, r]) => `<i style="inline-size:${(r.s / total * 100).toFixed(2)}%;background:${colorFor(c, cats)}"></i>`).join(""));
-  patch(legend, parts.slice(0, 4).map(([c, r]) =>
-    `<span><i class="dot" style="background:${colorFor(c, cats)}"></i>${esc(c)} ${pct(r.s)}%</span>`).join(""));
+  bar.setAttribute("aria-label", "Today: " + parts.map(([k, name]) => `${name} ${pct(sum[k])}%`).join(", "));
+  patch(bar, parts.map(([k]) => `<i style="inline-size:${(sum[k] / total * 100).toFixed(2)}%;background:${toneFor(k)}"></i>`).join(""));
+  patch(legend, parts.map(([k, name]) =>
+    `<span><i class="key" style="background:${toneFor(k)}"></i>${name} ${pct(sum[k])}%</span>`).join(""));
 }
 
 /* drift state from stored trail: { drifts, ongoing, streak } */
@@ -111,7 +109,7 @@ function renderNow(box, tab, live, day, cats) {
        <span class="meta">${tracking
          ? `<span class="rec" aria-hidden="true"></span><span class="visitT"></span> ${live.bg ? "playing in the background" : "this visit"} · <span class="siteT"></span> today`
          : `Paused — ${esc((live && live.why) || "waiting for activity")} · <span class="siteT"></span> today`}</span></div>
-     ${unsorted ? "" : `<span class="cat-label"><i class="dot" style="background:${colorFor(cat, cats)}"></i>${esc(cat)}</span>`}</div>
+     ${unsorted ? "" : `<span class="cat-label">${esc(cat)}</span>`}</div>
    ${unsorted ? `<div class="sort-prompt"><p class="meta">Which category is ${esc(domain)}?</p>${chipsHTML(domain, cat, cats)}</div>` : ""}`);
   const v = box.querySelector(".visitT"), s = box.querySelector(".siteT");
   if (v) v.textContent = clock(visit);
@@ -148,7 +146,7 @@ function renderPath(strip, labels, trail, cats, now = Date.now()) {
   strip.setAttribute("aria-label",
     `Today's path from ${timeOf(t0)} to now, across ${plural(new Set(segs.map(s => s.d)).size, "site")}`);
   patch(strip, segs.map(s =>
-    `<i style="inset-inline-start:${((s.start - t0) / span * 100).toFixed(1)}%;inline-size:${Math.max(0.4, (s.end - s.start) / span * 100).toFixed(1)}%;background:${colorFor(catFor(s.d, cats), cats)}" title="${esc(s.d)}"></i>`).join(""));
+    `<i style="inset-inline-start:${((s.start - t0) / span * 100).toFixed(1)}%;inline-size:${Math.max(0.4, (s.end - s.start) / span * 100).toFixed(1)}%;background:${toneFor(siteKind(s.d, cats))}" title="${esc(s.d)}"></i>`).join(""));
   patch(labels, `<time datetime="${isoTime(t0)}">${timeOf(t0)}</time><span>now</span>`);
 }
 /* summary line + vertical timeline of today's drifts (<ol> + <time>) */

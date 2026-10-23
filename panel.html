@@ -36,6 +36,21 @@
     <ul id="catRows" class="rows"></ul>
     <button id="addCat" class="quiet">Add a category</button>
   </details>
+  <section class="usage" aria-labelledby="usageLabel">
+    <h2 id="usageLabel" class="eyebrow">Usage</h2>
+    <div class="usage-bar">
+      <div class="seg" role="group" aria-label="Range">
+        <button data-range="day" aria-pressed="true">Day</button><button data-range="week" aria-pressed="false">Week</button>
+      </div>
+      <div class="usage-nav">
+        <button id="uPrev" class="nav" aria-label="Earlier">‹</button>
+        <span id="uTitle" aria-live="polite"></span>
+        <button id="uNext" class="nav" aria-label="Later">›</button>
+      </div>
+    </div>
+    <div id="usageBody"></div>
+    <div id="uTip" class="tip" role="tooltip" hidden></div>
+  </section>
 </main>
 
 <footer class="foot">
@@ -56,5 +71,6 @@
 <script src="lib.js"></script>
 <script src="lens.js"></script>
 <script src="ui.js"></script>
+<script src="usage.js"></script>
 <script src="panel.js"></script>
 </body></html>

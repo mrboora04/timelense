@@ -19,7 +19,7 @@ async function renderPopup() {
   const drift = driftState(store.trail, cats);
 
   $("pTotal").textContent = fmt(total);
-  renderStack($("pStack"), $("pLegend"), rollup(Object.entries(day.domains), cats), total, cats);
+  renderStack($("pStack"), $("pLegend"), Object.entries(day.domains), total, cats);
   const now = renderNow($("pNow"), tab, live, day, cats);
   liveBase = { ...now, total, at: Date.now() };
   renderMascot($("pMascot"), mascotMood({ onSite: !!now.domain, tracking: now.tracking, total,
