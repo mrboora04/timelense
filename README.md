@@ -5,7 +5,7 @@
 TimeLens is a small Chrome extension (about 32 KB gzipped, no dependencies at runtime). It shows a live timer for the site you're on, sorts your day into categories, and draws a timeline of every time you slid from work into distraction, with Lens the mascot keeping you company. Like Android Digital Wellbeing, it can also give a site a daily timer and pause distracting sites with Focus mode. It runs 100% locally: data lives in `chrome.storage` on your PC and is never sent anywhere.
 
 - **Popup:** Lens the mascot, today's total, a category breakdown and the site you're on, with a live timer.
-- **Side panel:** today's total with the change vs yesterday, the site you're on, your drift timeline, and (collapsed) every site today and your categories. At the bottom, **Usage** works like iPhone Screen Time or Android Digital Wellbeing: a Day / Week switch, ‹ › back through the last 30 days, time by hour or by day, your daily average, and your most used sites with visits.
+- **Side panel:** today's total with the change vs yesterday, the site you're on, your drift timeline, and (collapsed) every site today and your categories. At the bottom, **Usage** works like iPhone Screen Time or Android Digital Wellbeing: a Day / Week switch, ‹ › back through the last 30 days, columns split into focus, distracting and other by hour or by day, your daily average, and your most used sites. Tap a site for its own detail: its daily average over the last week, a 7-day chart, its visits and the hour you usually use it.
 - **Site timers and Focus mode:** a daily timer on any site, set in its row under Sites, and a Focus mode switch that pauses distracting sites, with 5, 15 or 30 minute breaks.
 - **Lens:** a small mascot whose face and message follow your state: waving, happy, proud of a focus streak, curious when you wander, worried when you're doomscrolling, asleep when paused.
 
@@ -60,6 +60,7 @@ A **visit** is counted when you land on a different site or tab. Returning to th
 | `docs/ui-audit.md` | Design, accessibility and copy audit behind the v1.3 redesign |
 
 ## Data (in `chrome.storage.local`)
+- `pages`: one page you visited per site, only so the icon lookup asks Chrome's local icon cache with an address it has an icon for
 - `v1`: `{ "YYYY-MM-DD": { domains: { "github.com": { s: seconds, v: visits } }, hours: [24 × seconds] } }`, last 30 days
 - `trail`: `{ "YYYY-MM-DD": [{ d: "github.com" or null (paused), t: ms }] }`, last 2 days, for drift detection
 - `catList`, `catMap` (your per-site picks), `catAlias` (category renames), `seen`

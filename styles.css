@@ -17,7 +17,7 @@
   --size-xs:11px; --size-sm:12px; --size-base:13px; --size-md:15px; --size-xl:32px; --size-2xl:44px;
   --radius-2:6px; --radius-3:10px; --radius-round:999px;
   --line-1:1px; --line-2:2px; --line-3:3px;
-  --ms-150:150ms; --ms-250:250ms;
+  --ms-15:15ms; --ms-150:150ms; --ms-250:250ms; --ms-450:450ms;
 
   /* ---------- semantic ---------- */
   --color-bg:var(--grey-950); --color-surface:var(--grey-900); --color-sunken:var(--grey-850);
@@ -36,7 +36,8 @@
   --radius-xs:var(--line-2); --radius-sm:var(--radius-2); --radius-md:var(--radius-3); --radius-full:var(--radius-round);
   --border-width-thin:var(--line-1); --border-width-medium:var(--line-2); --border-width-thick:var(--line-3);
   --duration-fast:var(--ms-150); --duration-normal:var(--ms-250);
-  --ease-out:cubic-bezier(.2,.8,.2,1);
+  --ease-out:cubic-bezier(.2,.8,.2,1); --ease-out-quint:cubic-bezier(.22,1,.36,1);
+  --duration-slow:var(--ms-450); --stagger:var(--ms-15);
   --target-min:var(--space-11);          /* WCAG 2.5.5: 44x44 */
   --focus-ring:0 0 0 var(--line-3) color-mix(in srgb, var(--color-accent) 50%, transparent);
 
@@ -61,11 +62,11 @@
   --switch-track-on:var(--color-text); --switch-knob-on:var(--color-bg);
   --timer-up:var(--color-danger); --paused-dim:.4;
   --lens-size-lg:var(--space-16); --paused-width:420px;
-  --popup-width:340px; --chart-height:112px; --chart-bar-max:24px;   /* dataviz: columns <= 24px */
+  --popup-width:340px; --chart-height:120px; --chart-height-mini:48px; --chart-bar-max:24px;   /* dataviz: columns <= 24px */
 
 }
 @media (prefers-reduced-motion: reduce){
-  :root{ --duration-fast:0ms; --duration-normal:0ms; }
+  :root{ --duration-fast:0ms; --duration-normal:0ms; --duration-slow:0ms; }
 }
 
 *{box-sizing:border-box;margin:0;padding:0}
@@ -182,7 +183,8 @@ details[open] summary::after{content:"–"}
 .notice{display:grid;gap:var(--spacing-sm);padding:var(--spacing-md);border:var(--border-width-thin) solid var(--color-warning);
   border-radius:var(--radius-md);font-size:var(--font-size-sm)}
 
-/* ---------- usage (phone-style day / week) ---------- */
+/* ---------- usage (phone-style day / week) ----------
+   A precise instrument: hairlines, one accent (amber = distracting), the chart as the focus. */
 .usage{position:relative;display:grid;gap:var(--spacing-sm);border-block-start:var(--border-width-thin) solid var(--row-divider);padding-block-start:var(--spacing-lg)}
 .usage-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--spacing-sm)}
 .seg{display:inline-flex;border:var(--border-width-thin) solid var(--chip-border);border-radius:var(--radius-full);padding:var(--spacing-xxs)}
@@ -191,28 +193,56 @@ details[open] summary::after{content:"–"}
 .usage-nav{display:inline-flex;align-items:center;gap:var(--spacing-xs);font-weight:var(--font-weight-semibold)}
 .usage-nav .nav{inline-size:var(--target-min);min-block-size:var(--target-min);font-size:var(--font-size-md);border-radius:var(--radius-full)}
 .usage-nav .nav:disabled{opacity:.3;cursor:default}
-.stat{font-size:var(--font-size-display-sm);font-weight:var(--font-weight-heavy);line-height:var(--line-height-tight)}
-.stat .meta{font-size:var(--font-size-sm);font-weight:var(--font-weight-normal)}
-.chart{margin-block-start:var(--spacing-sm)}
-.cols{position:relative;display:flex;align-items:stretch;gap:var(--spacing-xxs);block-size:var(--chart-height);
-  border-block-end:var(--border-width-thin) solid var(--color-border)}
-.col{flex:1;display:flex;align-items:flex-end;justify-content:center;min-inline-size:0}
-.col i{display:block;inline-size:100%;max-inline-size:var(--chart-bar-max);background:var(--chart-emph);
-  border-radius:var(--radius-xs) var(--radius-xs) 0 0;transition:opacity var(--duration-fast) var(--ease-out)}
-.is-days .col i{border-radius:var(--radius-sm) var(--radius-sm) 0 0}
-.col:hover i,.col:focus-visible i{opacity:.75}
-.avg{position:absolute;inset-inline:0;border-block-start:var(--border-width-thin) solid var(--color-text-muted);pointer-events:none}
-.avg span{position:absolute;inset-inline-end:0;inset-block-end:var(--spacing-xxs);font-size:var(--font-size-xs);color:var(--color-text-muted);
-  background:var(--color-bg);padding-inline-start:var(--spacing-xs)}
-.col-labels{display:flex;gap:var(--spacing-xxs);font-size:var(--font-size-xs);color:var(--color-text-muted);margin-block-start:var(--spacing-xs)}
-.col-labels span{flex:1;text-align:center}
+.lede{font-size:var(--font-size-md);line-height:var(--line-height-base);margin-block-start:var(--spacing-xs)}
+.lede strong{font-size:var(--font-size-display-sm);font-weight:var(--font-weight-heavy);letter-spacing:-.02em;margin-inline-end:var(--spacing-xs)}
 .usage .hint{font-size:var(--font-size-xs)}
-.usage .eyebrow{margin-block-start:var(--spacing-sm)}
+.usage h3.eyebrow{margin-block:var(--spacing-lg) 0}
+
+/* chart: the plot keeps a strip on top for the tooltip */
+.chart{margin-block-start:var(--spacing-xs)}
+.plot{padding-block-start:var(--space-8)}
+.plot-area{position:relative;block-size:var(--chart-height);border-block-end:var(--border-width-thin) solid var(--color-border)}
+.chart.is-mini .plot{padding-block-start:var(--spacing-xs)}
+.chart.is-mini .plot-area{block-size:var(--chart-height-mini)}
+.cols{position:absolute;inset:0;display:flex;align-items:stretch;gap:var(--spacing-xs)}
+.cols.is-dense{gap:var(--spacing-xxs)}
+.col{flex:1;display:flex;align-items:flex-end;justify-content:center;min-inline-size:0;cursor:default}
+button.col{cursor:pointer}
+.colstack{display:flex;flex-direction:column-reverse;gap:var(--spacing-xxs);inline-size:100%;max-inline-size:var(--chart-bar-max);
+  border-radius:var(--radius-xs) var(--radius-xs) 0 0;overflow:hidden;transform-origin:bottom;
+  transition:opacity var(--duration-fast) var(--ease-out)}
+.cols:not(.is-dense) .colstack{border-radius:var(--radius-sm) var(--radius-sm) 0 0}
+.seg-all,.colstack .seg{flex-basis:0;min-block-size:var(--line-1);border-radius:0}
+.colstack .seg.is-focus{background:var(--chart-focus)}
+.colstack .seg.is-distract{background:var(--chart-distract)}
+.colstack .seg.is-neutral{background:var(--chart-neutral)}
+.colstack .seg.is-all{background:var(--chart-emph)}
+.cols:hover .col:not(:hover) .colstack,.cols:has(.col:focus-visible) .col:not(:focus-visible) .colstack{opacity:.4}
+.avg{position:absolute;inset-inline:0;border-block-start:var(--border-width-thin) solid var(--color-text-muted);pointer-events:none}
+.avg b{position:absolute;inset-inline-end:0;inset-block-end:var(--spacing-xxs);font-size:var(--font-size-xs);font-weight:var(--font-weight-normal);
+  color:var(--color-text-muted);background:var(--color-bg);padding-inline-start:var(--spacing-xs)}
+.col-labels{display:flex;gap:var(--spacing-xxs);font-size:var(--font-size-xs);color:var(--color-text-muted);margin-block-start:var(--spacing-xs);white-space:nowrap}
+.col-labels span{flex:1;text-align:center;overflow:visible}
+/* columns grow in once when you change day/week, never on routine refreshes */
+@keyframes grow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+.is-entering .colstack{animation:grow var(--duration-slow) var(--ease-out-quint) both;animation-delay:calc(var(--i) * var(--stagger))}
+@media (prefers-reduced-motion: reduce){ .is-entering .colstack{animation:none} }
+
+/* most used + a site's own detail (grid-rows transition, no height animation) */
+.usage-row{inline-size:100%;text-align:start;align-items:center}
 .usage-row .row-main{display:grid;gap:var(--spacing-xs)}
-.meter{display:block;block-size:var(--spacing-xs);border-radius:var(--radius-full);background:var(--chart-track);overflow:hidden}
-.meter i{display:block;block-size:100%;background:var(--chart-emph)}
+.usage-row .meta{display:grid;justify-items:end;line-height:var(--line-height-tight)}
+.usage-row .meta small{font-size:var(--font-size-xs)}
+.usage-row[aria-expanded="true"]{border-block-end-color:transparent}
+.meter{display:block;block-size:var(--line-3);border-radius:var(--radius-full);background:var(--chart-track);overflow:hidden}
+.meter i{display:block;block-size:100%}
+.detail{display:grid;grid-template-rows:0fr;transition:grid-template-rows var(--duration-normal) var(--ease-out-quint)}
+.detail.is-open{grid-template-rows:1fr;border-block-end:var(--border-width-thin) solid var(--row-divider)}
+.detail-inner{overflow:hidden;min-block-size:0}
+.detail.is-open .detail-inner{padding-block:var(--spacing-xs) var(--spacing-md);padding-inline-start:var(--spacing-xl)}
+.detail b{color:var(--color-text);font-weight:var(--font-weight-semibold)}
 .tip{position:absolute;z-index:1;padding:var(--spacing-xs) var(--spacing-sm);border-radius:var(--radius-sm);pointer-events:none;
-  background:var(--color-text);color:var(--color-bg);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);white-space:nowrap}
+  background:var(--color-text);color:var(--color-bg);font-size:var(--font-size-xs);font-weight:var(--font-weight-semibold);white-space:nowrap}
 
 /* ---------- inline editing ---------- */
 .inline-edit{min-block-size:var(--target-min);padding-inline:var(--spacing-md);font:inherit;color:var(--color-text);

@@ -17,7 +17,8 @@ function showStale(live) { $("staleNote").hidden = !workerStale(live); }
 $("reloadBtn").onclick = () => chrome.runtime.reload();
 
 async function render() {
-  const store = await chrome.storage.local.get(["v1", "challenge", "trail", ...CAT_KEYS, ...BLOCK_KEYS]);
+  const store = await chrome.storage.local.get(["v1", "challenge", "trail", "pages", ...CAT_KEYS, ...BLOCK_KEYS]);
+  setFaviconPages(store.pages);
   const v = store.v1 || {};
   const cats = catsFrom(store);
   const [live, tab] = await Promise.all([getLive(), activeTab()]);
@@ -42,7 +43,7 @@ async function render() {
     drift: drift.ongoing, streak: drift.streak, why: live && live.why, bg: live && live.bg }));
   renderDriftList($("driftSum"), $("driftList"), $("driftMore"), drift.drifts);
   renderPath($("pathStrip"), $("pathLabels"), store.trail, cats);
-  renderUsage(v);
+  renderUsage(v, cats);
 
   $("sitesCount").textContent = entries.length ? `${entries.length} today` : "";
   const limits = store.limits || {};

@@ -196,6 +196,17 @@ test("music playing in Chrome counts while another app is in front, as backgroun
   assert.equal((await wk.live()).tracking, false);
 });
 
+test("time is kept per site per hour, and a visited page is remembered for its icon", async () => {
+  const w = makeWorld();
+  w.tabs[0].url = "https://www.youtube.com/watch?v=abc";
+  const wk = bootWorker(w);
+  await settle();
+  w.now += MIN; wk.tick(); await settle();
+  const day = Object.values(w.local.v1)[0];
+  assert.equal(day.dh["youtube.com"][10], 60);                 // the fake clock starts at 10:00
+  assert.equal(w.local.pages["youtube.com"], "https://www.youtube.com/watch?v=abc");
+});
+
 test("the tick alarm is created once across worker restarts", async () => {
   const w = makeWorld();
   bootWorker(w); await settle();

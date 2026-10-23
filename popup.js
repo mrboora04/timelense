@@ -10,7 +10,8 @@ function showStale(live) { $("staleNote").hidden = !workerStale(live); }
 $("reloadBtn").onclick = () => chrome.runtime.reload();
 
 async function renderPopup() {
-  const store = await chrome.storage.local.get(["v1", "trail", ...CAT_KEYS]);
+  const store = await chrome.storage.local.get(["v1", "trail", "pages", ...CAT_KEYS]);
+  setFaviconPages(store.pages);
   const cats = catsFrom(store);
   const [live, tab] = await Promise.all([getLive(), activeTab()]);
   showStale(live);

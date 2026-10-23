@@ -41,7 +41,8 @@ async function record(ops, mark = null, fresh = false, when = new Date()) {
   const credited = ops.map(o => (o.ms >= 1000 ? Math.round(Math.min(o.ms, MAX_CREDIT_MS) / 1000) : 0));
   const touchV1 = ops.some((o, i) => credited[i] || o.visit);
   if (!touchV1 && !mark) return credited;
-  const d = await chrome.storage.local.get(mark ? ["v1", "trail", "seen"] : ["v1"]);
+  const withUrl = ops.filter(o => o.url);
+  const d = await chrome.storage.local.get([...(mark ? ["v1", "trail", "seen"] : ["v1"]), ...(withUrl.length ? ["pages"] : [])]);
   const upd = {};
   if (touchV1) {
     const v = d.v1 || {};
@@ -54,10 +55,20 @@ async function record(ops, mark = null, fresh = false, when = new Date()) {
       if (o.visit) e.v += 1;
       day.domains[o.domain] = e;
       day.hours[when.getHours()] += credited[i];
+      if (credited[i]) {   // dh: seconds per site per hour (sparse), for stacked hourly charts
+        const dh = day.dh || (day.dh = {}), hh = dh[o.domain] || (dh[o.domain] = {}), h = when.getHours();
+        hh[h] = (hh[h] || 0) + credited[i];
+      }
     });
     v[k] = day; prune(v, KEEP_DAYS);
     upd.v1 = v;
     upd.seen = when.getTime(); // last time anything was counted
+  }
+  /* pages: one page you visited per site, so the icon lookup asks Chrome's local icon cache
+     with an address it has an icon for (it files icons under real pages, e.g. www.youtube.com/...) */
+  if (withUrl.length) {
+    upd.pages = d.pages || {};
+    for (const o of withUrl) upd.pages[o.domain] = o.url;
   }
   if (mark) {
     const trail = d.trail || {};
@@ -137,7 +148,7 @@ async function sync() {
     ops.push({ domain: cur.domain, ms: now - cur.start - trim });
     if (!domain) mark = { d: null, t: Math.max(cur.start, now - trim) };
   }
-  if (domain && !same) ops.push({ domain, visit: true });
+  if (domain && !same) ops.push({ domain, visit: true, url: tab.url });
   /* started, switched or resumed; b marks background audio so drift detection can skip it */
   if (domain) mark = bg ? { d: domain, t: now, b: 1 } : { d: domain, t: now };
   const credited = await record(ops, mark, cur === null);

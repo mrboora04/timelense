@@ -62,7 +62,7 @@ const CAT_KEYS = ["catList", "catMap", "catAlias"];
 /* Bump with every change. Chrome reloads the dashboard's files from disk on their own, but
    keeps running the old background worker until the extension is reloaded; the pages
    compare this number with the worker's to notice that and offer a reload. */
-const TL_BUILD = 160;
+const TL_BUILD = 170;
 
 const pad = n => String(n).padStart(2, "0");
 function dayKey(d = new Date()) {
@@ -295,8 +295,13 @@ function clock(s) {
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
   return (h ? h + ":" + pad(m) : m) + ":" + pad(sec);
 }
+/* Icons come from Chrome's local icon cache (never the network). It files icons under pages
+   you actually opened, so ask with a remembered page of that site when there is one. */
+let faviconPages = {};
+function setFaviconPages(pages) { faviconPages = pages || {}; }
 function favicon(domain) {
-  return chrome.runtime.getURL(`/_favicon/?pageUrl=${encodeURIComponent("https://" + domain)}&size=32`);
+  const page = faviconPages[domain] || "https://" + domain;
+  return chrome.runtime.getURL(`/_favicon/?pageUrl=${encodeURIComponent(page)}&size=32`);
 }
 function esc(s) {
   return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));

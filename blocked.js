@@ -6,6 +6,7 @@ const domain = domainOf(target);
 
 function show(reason) {
   document.title = `${domain} is paused · TimeLens`;
+  setFaviconPages({ [domain]: target });   // the exact page is the surest icon lookup
   $("siteIcon").src = favicon(domain);
   $("siteIcon").hidden = false;
   $("title").textContent = `${domain} is paused`;
