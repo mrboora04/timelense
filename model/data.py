@@ -170,8 +170,8 @@ def examples(n=24000, seed=1):
         pool += TOD_LINES.get((sit, tod), []) * 3      # weight the specific lines up
         pool += AMT_LINES.get((sit, amt), []) * 3
         line = rng.choice(pool)
-        if tod in TOD_OPENERS and sit in ("ok", "streak", "hello") and rng.random() < 0.2 \
-                and not line.startswith(("Good", "Morning", "Evening", "Late", "It's", "Night", "Hi", "Hey", "Hello")):
+        # openers only go on the general lines, which don't mention the time of day themselves
+        if tod in TOD_OPENERS and sit in ("ok", "streak") and line in LINES[sit] and rng.random() < 0.2:
             line = rng.choice(TOD_OPENERS[tod]) + " " + line
         out.append((prompt(sit, tod, amt), line))
     return out
