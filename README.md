@@ -21,6 +21,7 @@ Lens's one-liners come from a tiny language model trained only on Lens-style lin
 - **Once per situation:** Lens writes a new line only when its situation changes (paused, drifting, a focus streak, and so on). The line is kept in session memory, so the popup and side panel agree.
 - **Live values:** the model writes slots such as `{site}` and `{dur}`, never real site names or numbers; TimeLens fills them in on every render, so the numbers stay current and the model never sees your data.
 - **Checks:** a line has to be one short sentence (90 characters at most) that uses only the values its situation has. Otherwise, or with no model, Lens uses its usual fixed line.
+- **Rate it:** under the bubble, **Good**, **Bad** and **Skip** rate the line the model just wrote (once per line). A vote keeps only the line's template (like `{dur} of focus. Nice!`, never a site name), the situation and the time of day, in `lensVotes` (last 1000). The side panel shows the tally. **Export data** includes the votes; `python model/votes.py timelens-export-….json` shows the good rate per situation and the lines rated worse than good, to reword in `data.py` before retraining.
 - **Off switch:** **Lens's own words** at the bottom of the side panel. Off, Lens goes back to its fixed lines and the model isn't loaded.
 
 To teach Lens new lines, add them to `model/data.py` and retrain (needs Python 3 and CPU PyTorch, about a minute):
@@ -69,7 +70,7 @@ A **visit** is counted when you land on a different site or tab. Returning to th
 | `ui.js` | Shared UI: category buttons, the "now" row, charts with text alternatives, drift timeline |
 | `lens.js` | Lens the mascot: rig data, pose library, mood transitions |
 | `talk.js` | Lens's own words: runs the tiny model in `model/lens.bin`, checks its lines, falls back to the fixed ones |
-| `model/` | Training data (`data.py`) and script (`train.py`) for Lens's model; not part of the extension except `lens.bin` |
+| `model/` | Training data (`data.py`), script (`train.py`) and rating report (`votes.py`) for Lens's model; not part of the extension except `lens.bin` |
 | `popup.html/js` | Toolbar popup |
 | `panel.html/js` | Side-panel dashboard |
 | `blocked.html/js` | The paused page shown in place of a site whose timer ran out or that Focus mode pauses |
@@ -85,6 +86,7 @@ A **visit** is counted when you land on a different site or tab. Returning to th
 - `limits`: `{ "youtube.com": seconds a day }`, your site timers
 - `focus`: `{ on, cats: [categories it pauses], breakUntil: ms or null }`
 - `lensTalk`: `false` when Lens's own words are switched off
+- `lensVotes`: `[{ t, say, line, tod, amt, v }]` your Good (1), Bad (-1) and Skip (0) ratings of Lens's lines
 - `lensSaid` (session storage, memory only): Lens's current line and the situation it was written for
 
 Use **Export JSON** in the side panel to back it up.

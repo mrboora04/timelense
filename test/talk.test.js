@@ -130,3 +130,35 @@ test("the only thing fetched is the model file inside the extension", async () =
   for (const c of Object.values(SITUATIONS)) await run("lensSays")(run("mascotMood")(c));
   assert.deepEqual([...new Set(fetched)], ["chrome-extension://test/model/lens.bin"]);
 });
+
+test("a model line can be rated Good, Bad or Skip once, and only the template is kept", async () => {
+  const { session, run, ctx } = load({ local: {} });
+  const says = run("lensSays"), mood = run("mascotMood"), vote = run("lensVote");
+  const m = await says(mood({ ...SITUATIONS.drift, drift: { from: "github.com", leftAt: 0, secs: 6 * MIN, sites: ["x.com"] } }));
+  assert.equal(m.rate.say, "drift");
+  assert.match(m.text, /github\.com/);
+  assert.match(m.rate.line, /\{from\}/, "the template is rated, not the filled-in text");
+  await vote(m.rate, "-1");
+  await vote(m.rate, "1");                                   // a second vote on the same line is ignored
+  const votes = JSON.parse(JSON.stringify((await ctx.chrome.storage.local.get("lensVotes")).lensVotes));
+  assert.equal(votes.length, 1);
+  assert.equal(votes[0].v, -1);
+  assert.equal(votes[0].say, "drift");
+  assert.ok(!JSON.stringify(votes).includes("github.com"));
+  assert.equal((await says(mood(SITUATIONS.drift))).rate, null, "nothing to rate until Lens writes a new line");
+  await says(mood(SITUATIONS.streak));                      // new situation, new line, rateable again
+  assert.ok(session.lensSaid.voted !== true);
+});
+
+test("fixed lines and the off switch have nothing to rate", async () => {
+  const off = load({ local: { lensTalk: false } });
+  assert.equal((await off.run("lensSays")(off.run("mascotMood")(SITUATIONS.ok))).rate, undefined);
+  const missing = load({ model: false });
+  assert.equal((await missing.run("lensSays")(missing.run("mascotMood")(SITUATIONS.ok))).rate, undefined);
+});
+
+test("the tally counts good, bad and skipped votes", () => {
+  const { run } = load();
+  assert.equal(run("lensTally")(), "No ratings yet.");
+  assert.equal(run("lensTally")([{ v: 1 }, { v: 1 }, { v: -1 }, { v: 0 }]), "2 good · 1 bad · 1 skipped");
+});

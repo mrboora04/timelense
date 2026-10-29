@@ -17,7 +17,7 @@ function showStale(live) { $("staleNote").hidden = !workerStale(live); }
 $("reloadBtn").onclick = () => chrome.runtime.reload();
 
 async function render() {
-  const store = await chrome.storage.local.get(["v1", "challenge", "trail", "pages", "lensTalk", ...CAT_KEYS, ...BLOCK_KEYS]);
+  const store = await chrome.storage.local.get(["v1", "challenge", "trail", "pages", "lensTalk", "lensVotes", ...CAT_KEYS, ...BLOCK_KEYS]);
   setFaviconPages(store.pages);
   const v = store.v1 || {};
   const cats = catsFrom(store);
@@ -39,9 +39,12 @@ async function render() {
   const drift = driftState(store.trail, cats);
   const now = renderNow($("nowBox"), tab, live, day, cats);
   liveBase = { ...now, total, at: Date.now() };
-  renderMascot($("mascot"), await lensSays(mascotMood({ onSite: !!now.domain, tracking: now.tracking, total,
-    drift: drift.ongoing, streak: drift.streak, why: live && live.why, bg: live && live.bg })));
+  const said = await lensSays(mascotMood({ onSite: !!now.domain, tracking: now.tracking, total,
+    drift: drift.ongoing, streak: drift.streak, why: live && live.why, bg: live && live.bg }));
+  renderMascot($("mascot"), said);
+  renderRate($("mascot"), said);
   $("talkSwitch").setAttribute("aria-checked", String(store.lensTalk !== false));
+  $("talkVotes").textContent = lensTally(store.lensVotes);
   renderDriftList($("driftSum"), $("driftList"), $("driftMore"), drift.drifts);
   renderPath($("pathStrip"), $("pathLabels"), store.trail, cats);
   renderUsage(v, cats);

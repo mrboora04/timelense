@@ -130,6 +130,43 @@ async function lensSays(m) {
       }
       await chrome.storage.session.set({ lensSaid: { say: m.say, line } });
     }
-    return line ? { mood: m.mood, text: lensFill(line, m.slots) } : m;
+    if (!line) return m;
+    const rate = lensSaid && lensSaid.say === m.say && lensSaid.voted ? null : { say: m.say, line, amt: m.amt };
+    return { mood: m.mood, text: lensFill(line, m.slots), rate };
   } catch { return m; }
+}
+
+/* ---------- rating the model's lines: Good, Bad or Skip (popup and side panel) ----------
+   Each vote keeps only the line's template (slots like {dur}, never site names), the situation
+   and the time of day, in lensVotes (last 1000), so it can be exported and used to improve
+   model/data.py. One vote per line; the row goes away until Lens writes a new one. */
+const LENS_VOTES = [["1", "Good", "good"], ["-1", "Bad", "bad"], ["0", "Skip", "skip"]];
+async function lensVote(rate, v) {
+  const { lensSaid } = await chrome.storage.session.get("lensSaid");
+  if (!lensSaid || lensSaid.say !== rate.say || lensSaid.voted) return;
+  await chrome.storage.session.set({ lensSaid: { ...lensSaid, voted: true } });
+  const { lensVotes = [] } = await chrome.storage.local.get("lensVotes");
+  const tod = lensPrompt({ say: rate.say, amt: rate.amt }).split(" ")[1].slice(1, -1);
+  lensVotes.push({ t: Date.now(), say: rate.say, line: rate.line, tod, amt: rate.amt, v: Number(v) });
+  await chrome.storage.local.set({ lensVotes: lensVotes.slice(-1000) });
+}
+/* shows the row under the bubble when the message has a line to rate, removes it otherwise */
+function renderRate(box, m) {
+  let row = box.querySelector(".rate");
+  if (!m.rate) { if (row) row.remove(); return; }
+  if (!row) {
+    row = document.createElement("div");
+    row.className = "rate";
+    row.setAttribute("role", "group");
+    row.setAttribute("aria-label", "Rate Lens's line");
+    row.innerHTML = LENS_VOTES.map(([v, label, cls]) => `<button class="${cls}" data-v="${v}">${label}</button>`).join("");
+    row.onclick = e => { const b = e.target.closest("[data-v]"); if (b) lensVote(row.rate, b.dataset.v); };
+    box.appendChild(row);
+  }
+  row.rate = m.rate;
+}
+/* "5 good · 2 bad · 1 skipped" for the side panel */
+function lensTally(votes = []) {
+  const n = v => votes.filter(x => x.v === v).length;
+  return votes.length ? `${n(1)} good · ${n(-1)} bad · ${n(0)} skipped` : "No ratings yet.";
 }

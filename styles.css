@@ -87,7 +87,12 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .pop main{display:grid;gap:var(--spacing-lg)}
 
 /* ---------- Lens + one-line status ---------- */
-.lens-line{display:flex;align-items:center;gap:var(--spacing-md)}
+.lens-line{display:flex;flex-wrap:wrap;align-items:center;gap:var(--spacing-md)}
+.rate{flex-basis:100%;display:flex;justify-content:flex-end;gap:var(--spacing-xs)}
+.rate button{min-block-size:var(--space-8);padding-inline:var(--spacing-md);border:var(--border-width-thin) solid var(--color-border);border-radius:var(--radius-full);font-size:var(--font-size-sm);color:var(--color-text-muted)}
+.rate .good{color:var(--color-success)}
+.rate .bad{color:var(--color-danger)}
+.rate button:hover{border-color:currentColor}
 .lens{inline-size:var(--lens-size);block-size:var(--lens-size);flex:none;overflow:visible}
 .pop .lens{inline-size:var(--lens-size-sm);block-size:var(--lens-size-sm)}
 .lens g{transform-box:view-box;transition:opacity var(--duration-normal) var(--ease-out)}

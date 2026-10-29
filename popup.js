@@ -23,8 +23,10 @@ async function renderPopup() {
   renderStack($("pStack"), $("pLegend"), Object.entries(day.domains), total, cats);
   const now = renderNow($("pNow"), tab, live, day, cats);
   liveBase = { ...now, total, at: Date.now() };
-  renderMascot($("pMascot"), await lensSays(mascotMood({ onSite: !!now.domain, tracking: now.tracking, total,
-    drift: drift.ongoing, streak: drift.streak, why: live && live.why, bg: live && live.bg })));
+  const said = await lensSays(mascotMood({ onSite: !!now.domain, tracking: now.tracking, total,
+    drift: drift.ongoing, streak: drift.streak, why: live && live.why, bg: live && live.bg }));
+  renderMascot($("pMascot"), said);
+  renderRate($("pMascot"), said);
 }
 
 /* sidePanel.open needs the click's user gesture, so the window id is fetched up front:
