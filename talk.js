@@ -136,19 +136,32 @@ async function lensSays(m) {
   } catch { return m; }
 }
 
-/* ---------- rating the model's lines: Good, Bad or Skip (popup and side panel) ----------
+/* ---------- rating the model's lines: Good, Bad or Skip (popup, side panel and the Train Lens lab) ----------
    Each vote keeps only the line's template (slots like {dur}, never site names), the situation
-   and the time of day, in lensVotes (last 1000), so it can be exported and used to improve
-   model/data.py. One vote per line; the row goes away until Lens writes a new one. */
+   and the time of day, in lensVotes (last 3000, about 0.4 MB), so it can be exported and used to
+   improve model/data.py. Votes from the lab carry lab: 1. In the bubble there is one vote per
+   line; the row goes away until Lens writes a new one. */
 const LENS_VOTES = [["1", "Good", "good"], ["-1", "Bad", "bad"], ["0", "Skip", "skip"]];
+const LENS_VOTE_CAP = 3000;
+/* saves one vote and returns its id (the time), which lensUnlog takes to undo it */
+async function lensLog(say, line, tod, amt, v, lab = false) {
+  const { lensVotes = [] } = await chrome.storage.local.get("lensVotes");
+  const vote = { t: Date.now(), say, line, tod, amt, v: Number(v) };
+  if (lab) vote.lab = 1;
+  lensVotes.push(vote);
+  await chrome.storage.local.set({ lensVotes: lensVotes.slice(-LENS_VOTE_CAP) });
+  return vote.t;
+}
+async function lensUnlog(t) {
+  const { lensVotes = [] } = await chrome.storage.local.get("lensVotes");
+  await chrome.storage.local.set({ lensVotes: lensVotes.filter(x => x.t !== t) });
+}
 async function lensVote(rate, v) {
   const { lensSaid } = await chrome.storage.session.get("lensSaid");
   if (!lensSaid || lensSaid.say !== rate.say || lensSaid.voted) return;
   await chrome.storage.session.set({ lensSaid: { ...lensSaid, voted: true } });
-  const { lensVotes = [] } = await chrome.storage.local.get("lensVotes");
   const tod = lensPrompt({ say: rate.say, amt: rate.amt }).split(" ")[1].slice(1, -1);
-  lensVotes.push({ t: Date.now(), say: rate.say, line: rate.line, tod, amt: rate.amt, v: Number(v) });
-  await chrome.storage.local.set({ lensVotes: lensVotes.slice(-1000) });
+  await lensLog(rate.say, rate.line, tod, rate.amt, v);
 }
 /* shows the row under the bubble when the message has a line to rate, removes it otherwise */
 function renderRate(box, m) {

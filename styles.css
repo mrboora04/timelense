@@ -93,6 +93,14 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .rate .good{color:var(--color-success)}
 .rate .bad{color:var(--color-danger)}
 .rate button:hover{border-color:currentColor}
+
+/* ---------- Train Lens (rate many lines in a row) ---------- */
+.lab-body{display:grid;gap:var(--spacing-sm);padding-block-end:var(--spacing-sm)}
+.lab-body select{min-block-size:var(--target-min);inline-size:100%;padding-inline:var(--spacing-md);font:inherit;font-size:var(--font-size-sm);
+  color:var(--color-text);background:var(--color-sunken);border:var(--border-width-thin) solid var(--color-border);border-radius:var(--radius-sm)}
+.lab-line{min-block-size:var(--space-11);font-size:var(--font-size-md);line-height:var(--line-height-base)}
+.lab-rate{justify-content:flex-start;flex-wrap:wrap;align-items:center}
+.lab-rate button:disabled{opacity:.4;cursor:default}
 .lens{inline-size:var(--lens-size);block-size:var(--lens-size);flex:none;overflow:visible}
 .pop .lens{inline-size:var(--lens-size-sm);block-size:var(--lens-size-sm)}
 .lens g{transform-box:view-box;transition:opacity var(--duration-normal) var(--ease-out)}

@@ -78,6 +78,20 @@
     </div>
     <button id="talkSwitch" class="switch" role="switch" aria-checked="true" aria-labelledby="talkLabel"></button>
   </div>
+  <details id="lab" class="more">
+    <summary>Train Lens <span class="meta" id="labCount"></span></summary>
+    <div class="lab-body">
+      <p class="meta">Lens writes a line for a situation; rate it, and the next one appears. Good, Bad and Skip are saved, and Export data includes them. Names and times shown are examples.</p>
+      <label class="meta" for="labSit">Situation</label>
+      <select id="labSit"></select>
+      <p id="labWhen" class="meta"></p>
+      <p id="labLine" class="lab-line" aria-live="polite"></p>
+      <div id="labRate" class="rate lab-rate" role="group" aria-label="Rate this line">
+        <button class="good" data-v="1">Good</button><button class="bad" data-v="-1">Bad</button><button class="skip" data-v="0">Skip</button>
+        <button id="labUndo" class="quiet small" hidden>Undo</button>
+      </div>
+    </div>
+  </details>
   <div id="footActions" class="foot-row">
     <button id="exportBtn" class="quiet">Export data</button>
     <button id="resetBtn" class="quiet danger">Delete all data</button>
@@ -96,6 +110,7 @@
 <script src="lens.js"></script>
 <script src="talk.js"></script>
 <script src="ui.js"></script>
+<script src="lab.js"></script>
 <script src="usage.js"></script>
 <script src="panel.js"></script>
 </body></html>
