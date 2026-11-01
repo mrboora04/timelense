@@ -18,7 +18,7 @@ TimeLens records the order you move between sites (`trail`, kept for 2 days). A 
 ## Lens's own words
 Lens's one-liners come from a tiny language model trained only on Lens-style lines: a 2-layer GPT with about 37k parameters (d=32), stored as int8 weights in `model/lens.bin` (47 KB). `talk.js` runs it in plain JavaScript (no ONNX Runtime, no WebGPU, no network), right in the popup and side panel.
 
-- **Once per situation:** Lens writes a new line only when its situation changes (paused, drifting, a focus streak, and so on). The line is kept in session memory, so the popup and side panel agree.
+- **When it writes:** Lens writes a new line when its situation changes (paused, drifting, a focus streak, and so on) and straight after you rate one, so you can rate line after line in the bubble. The line is kept in session memory, so the popup and side panel agree.
 - **Live values:** the model writes slots such as `{site}` and `{dur}`, never real site names or numbers; TimeLens fills them in on every render, so the numbers stay current and the model never sees your data.
 - **Checks:** a line has to be one short sentence (90 characters at most) that uses only the values its situation has. Otherwise, or with no model, Lens uses its usual fixed line.
 - **Rate it:** under the bubble, **Good**, **Bad** and **Skip** rate the line the model just wrote (once per line). A vote keeps only the line's template (like `{dur} of focus. Nice!`, never a site name), the situation and the time of day, in `lensVotes` (last 3000). The side panel shows the tally. **Export data** includes the votes; `python model/votes.py timelens-export-….json` shows the good rate per situation and the lines rated worse than good, to reword in `data.py` before retraining.

@@ -122,35 +122,38 @@ function lensScores(votes = []) {
   for (const x of votes) s[lensKey(x.say, x.line)] = (s[lensKey(x.say, x.line)] || 0) + x.v;
   return s;
 }
-/* a valid line for the prompt that your ratings haven't ruled out, or null */
-function lensWrite(M, say, prompt, scores, rand = Math.random) {
-  let best = null, top = -Infinity;
-  for (let i = 0; i < 8; i++) {
-    const t = lensGenerate(M, prompt, rand), sc = scores[lensKey(say, t)] || 0;
-    if (!lensValid(t, M.slots[say]) || sc < 0) continue;
+/* a valid line for the prompt that your ratings haven't ruled out, or null.
+   After a vote, prev is the line just rated: the next one is a different line you haven't rated
+   yet, when the model writes one. */
+function lensWrite(M, say, prompt, scores, rand = Math.random, prev = null) {
+  let best = null, top = -Infinity, again = null;
+  for (let i = 0; i < 12; i++) {
+    const t = lensGenerate(M, prompt, rand), k = lensKey(say, t), sc = scores[k] || 0;
+    if (!lensValid(t, M.slots[say]) || sc < 0 || t === prev) continue;
+    if (prev !== null && k in scores) { again = again || t; continue; }
     if (sc > top) { best = t; top = sc; }
-    if (top > 0 || i >= 3) break;   // a liked line is good enough; otherwise try a few more
+    if (best && (prev !== null || top > 0 || i >= 3)) break;   // a liked line is good enough; otherwise try a few more
   }
-  return best;
+  return best || again;
 }
 /* mascotMood's { mood, text, say, slots, amt } -> { mood, text } with the model's line.
    The line is kept in session storage (memory only), so the popup and side panel show the same
-   one and a new line is written only when the situation changes. */
+   one. A new line is written when the situation changes, and straight after you rate a line. */
 async function lensSays(m) {
   try {
     const { lensTalk } = await chrome.storage.local.get("lensTalk");
     if (lensTalk === false || !m.say) return m;
     const { lensSaid } = await chrome.storage.session.get("lensSaid");
-    let line = lensSaid && lensSaid.say === m.say ? lensSaid.line : undefined;
+    const said = lensSaid && lensSaid.say === m.say ? lensSaid : null;
+    let line = said && !said.voted ? said.line : undefined;
     if (line === undefined) {
       const M = await lensLoad();
       const { lensVotes } = await chrome.storage.local.get("lensVotes");
-      line = M && M.slots[m.say] ? lensWrite(M, m.say, lensPrompt(m), lensScores(lensVotes)) : null;
+      line = M && M.slots[m.say] ? lensWrite(M, m.say, lensPrompt(m), lensScores(lensVotes), Math.random, said && said.line) : null;
       await chrome.storage.session.set({ lensSaid: { say: m.say, line } });
     }
     if (!line) return m;
-    const rate = lensSaid && lensSaid.say === m.say && lensSaid.voted ? null : { say: m.say, line, amt: m.amt };
-    return { mood: m.mood, text: lensFill(line, m.slots), rate };
+    return { mood: m.mood, text: lensFill(line, m.slots), rate: { say: m.say, line, amt: m.amt } };
   } catch { return m; }
 }
 

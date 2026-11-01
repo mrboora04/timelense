@@ -145,9 +145,9 @@ test("a model line can be rated Good, Bad or Skip once, and only the template is
   assert.equal(votes[0].v, -1);
   assert.equal(votes[0].say, "drift");
   assert.ok(!JSON.stringify(votes).includes("github.com"));
-  assert.equal((await says(mood(SITUATIONS.drift))).rate, null, "nothing to rate until Lens writes a new line");
-  await says(mood(SITUATIONS.streak));                      // new situation, new line, rateable again
-  assert.ok(session.lensSaid.voted !== true);
+  const next = await says(mood(SITUATIONS.drift));            // straight after a vote: a new line to rate
+  assert.ok(next.rate && next.rate.line !== m.rate.line);
+  assert.notEqual(session.lensSaid.voted, true);
 });
 
 test("fixed lines and the off switch have nothing to rate", async () => {
@@ -189,4 +189,19 @@ test("in the bubble too: a Bad line is replaced by another one", async () => {
     assert.notEqual(session.lensSaid.line, bad);
   }
   assert.ok(a.text);
+});
+
+test("rate, rate, rate: every vote is followed at once by a different line, unrated ones first", async () => {
+  const { session, run, ctx } = load({ local: { lensRate: false } });
+  const says = run("lensSays"), mood = run("mascotMood"), vote = run("lensVote");
+  const seen = new Set();
+  let m = await says(mood(SITUATIONS.ok));
+  for (let i = 0; i < 12; i++) {
+    assert.ok(m.rate, `line ${i} can be rated`);
+    assert.ok(!seen.has(m.rate.line), `line ${i} is new: ${m.rate.line}`);
+    seen.add(m.rate.line);
+    await vote(m.rate, ["1", "0", "-1"][i % 3]);
+    m = await says(mood(SITUATIONS.ok));
+  }
+  assert.equal(JSON.parse(JSON.stringify((await ctx.chrome.storage.local.get("lensVotes")).lensVotes)).length, 12);
 });
