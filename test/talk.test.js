@@ -162,3 +162,31 @@ test("the tally counts good, bad and skipped votes", () => {
   assert.equal(run("lensTally")(), "No ratings yet.");
   assert.equal(run("lensTally")([{ v: 1 }, { v: 1 }, { v: -1 }, { v: 0 }]), "2 good · 1 bad · 1 skipped");
 });
+
+test("ratings steer Lens: a line you rated Bad is never written again", async () => {
+  const votes = [{ say: "ok", line: "x", v: 1 }, { say: "ok", line: "x", v: 1 }, { say: "ok", line: "y", v: -1 }, { say: "ok", line: "y", v: 0 }];
+  const { ctx, run } = load();
+  assert.deepEqual(JSON.parse(JSON.stringify(run("lensScores")(votes))), { "ok|x": 2, "ok|y": -1 });
+  const P = "<ok> <evening> <usual>", write = run("lensWrite"), gen = run("lensGenerate");
+  const first = gen(ctx.M, P, seeded(3));
+  const scores = { ["ok|" + first]: -1 };
+  for (let s = 1; s <= 40; s++) {
+    const t = write(ctx.M, "ok", P, scores, seeded(s));
+    assert.notEqual(t, first);
+    assert.ok(t === null || t.length > 0);
+  }
+});
+
+test("in the bubble too: a Bad line is replaced by another one", async () => {
+  const live = load({ local: { lensRate: false } });
+  const say = live.run("lensSays"), mood = live.run("mascotMood");
+  const a = await say(mood(SITUATIONS.ok));
+  const bad = live.session.lensSaid.line;
+  const { ctx, session, run } = load({ local: { lensVotes: [{ say: "ok", line: bad, v: -1 }] } });
+  for (let i = 0; i < 25; i++) {
+    delete session.lensSaid;
+    await run("lensSays")(run("mascotMood")(SITUATIONS.ok));
+    assert.notEqual(session.lensSaid.line, bad);
+  }
+  assert.ok(a.text);
+});

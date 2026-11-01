@@ -148,11 +148,18 @@ def main():
     ap.add_argument("--batch", type=int, default=32)
     ap.add_argument("--lr", type=float, default=3e-3)
     ap.add_argument("--onnx", action="store_true")
+    ap.add_argument("--votes", help="a TimeLens export (side panel > Export data): train toward the lines you rated Good, away from Bad")
     args = ap.parse_args()
     torch.manual_seed(1)
 
     # 1. data, split 90/5/5
-    train, val, test = data.split(data.examples())
+    weights = None
+    if args.votes:
+        votes = json.load(open(args.votes, encoding="utf8")).get("lensVotes", [])
+        weights = data.vote_weights(votes)
+        print(f"votes: {len(votes)} ratings -> {sum(w == 0 for w in weights.values())} lines dropped, "
+              f"{sum(w > 1 for w in weights.values())} lines weighted up")
+    train, val, test = data.split(data.examples(weights=weights))
     # 2. tokens: prompt tokens, then every word token seen in the lines
     prompts = [f"<{x}>" for x in [*data.SLOTS, *data.TODS, *data.AMTS]]
     words = sorted({t for _, l in train + val + test for t in tokens(l)})

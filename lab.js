@@ -36,12 +36,13 @@ async function labNext(choice = "mix", rand = Math.random) {
     say = pool[Math.floor(rand() * pool.length)];
   }
   const rated = new Set(lensVotes.filter(v => v.say === say).map(v => v.line));
+  const score = lensScores(lensVotes);
   let fresh = null, repeat = null;
   for (let i = 0; i < 40 && !fresh; i++) {
     const tod = LAB_TODS[Math.floor(rand() * LAB_TODS.length)];
     const amt = say === "hello" ? "light" : LAB_AMTS[Math.floor(rand() * LAB_AMTS.length)];
     const line = lensGenerate(M, `<${say}> <${tod}> <${amt}>`, rand);
-    if (!lensValid(line, M.slots[say]) || (lab.sample && line === lab.sample.line)) continue;
+    if (!lensValid(line, M.slots[say]) || (lab.sample && line === lab.sample.line) || score[lensKey(say, line)] < 0) continue;
     if (rated.has(line)) repeat = repeat || { say, line, tod, amt, again: true };
     else fresh = { say, line, tod, amt, again: false };
   }
@@ -97,4 +98,5 @@ if (typeof document !== "undefined" && document.getElementById("lab")) {
   $("labSit").onchange = () => { lab.prev = null; labShow(); };
   $("lab").addEventListener("toggle", () => { if ($("lab").open && !lab.sample) labShow(); });
   chrome.storage.local.get("lensVotes").then(({ lensVotes }) => { $("labCount").textContent = labCount(lensVotes); });
+  if ($("lab").open && !lab.sample) labShow();   // open from the start while Lens is being tested
 }

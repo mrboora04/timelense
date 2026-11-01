@@ -112,6 +112,27 @@ function lensLoad() {
   return lensLoading || (lensLoading = fetch(chrome.runtime.getURL("model/lens.bin"))
     .then(r => r.arrayBuffer()).then(lensModel).catch(() => null));
 }
+/* What your ratings have taught Lens so far: net score per line (Good +1, Bad -1, Skip 0), keyed by
+   situation + line. A line with a negative score is never shown again; among the lines the model
+   writes, the best-rated wins. This is instant and needs no retraining (the weights stay the
+   same); model/train.py --votes bakes the ratings into the weights. */
+const lensKey = (say, line) => say + "|" + line;
+function lensScores(votes = []) {
+  const s = {};
+  for (const x of votes) s[lensKey(x.say, x.line)] = (s[lensKey(x.say, x.line)] || 0) + x.v;
+  return s;
+}
+/* a valid line for the prompt that your ratings haven't ruled out, or null */
+function lensWrite(M, say, prompt, scores, rand = Math.random) {
+  let best = null, top = -Infinity;
+  for (let i = 0; i < 8; i++) {
+    const t = lensGenerate(M, prompt, rand), sc = scores[lensKey(say, t)] || 0;
+    if (!lensValid(t, M.slots[say]) || sc < 0) continue;
+    if (sc > top) { best = t; top = sc; }
+    if (top > 0 || i >= 3) break;   // a liked line is good enough; otherwise try a few more
+  }
+  return best;
+}
 /* mascotMood's { mood, text, say, slots, amt } -> { mood, text } with the model's line.
    The line is kept in session storage (memory only), so the popup and side panel show the same
    one and a new line is written only when the situation changes. */
@@ -123,11 +144,8 @@ async function lensSays(m) {
     let line = lensSaid && lensSaid.say === m.say ? lensSaid.line : undefined;
     if (line === undefined) {
       const M = await lensLoad();
-      line = null;
-      for (let i = 0; M && M.slots[m.say] && i < 4 && !line; i++) {
-        const t = lensGenerate(M, lensPrompt(m));
-        if (lensValid(t, M.slots[m.say])) line = t;
-      }
+      const { lensVotes } = await chrome.storage.local.get("lensVotes");
+      line = M && M.slots[m.say] ? lensWrite(M, m.say, lensPrompt(m), lensScores(lensVotes)) : null;
       await chrome.storage.session.set({ lensSaid: { say: m.say, line } });
     }
     if (!line) return m;

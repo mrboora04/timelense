@@ -157,8 +157,17 @@ def prompt(sit, tod, amt):
     return f"<{sit}> <{tod}> <{amt}>"
 
 
-def examples(n=24000, seed=1):
-    """n (prompt, line) pairs, with situations evenly spread."""
+def vote_weights(votes):
+    """How often to train on each line, from your ratings: Bad (net score below 0) -> 0, so the
+    line is dropped; Good (above 0) -> 3, so the model leans toward it; unrated or tied -> 1."""
+    net = {}
+    for x in votes:
+        net[(x["say"], x["line"])] = net.get((x["say"], x["line"]), 0) + x["v"]
+    return {k: 0 if v < 0 else 3 if v > 0 else 1 for k, v in net.items()}
+
+
+def examples(n=24000, seed=1, weights=None):
+    """n (prompt, line) pairs, with situations evenly spread. weights: see vote_weights."""
     rng = random.Random(seed)
     out = []
     sits = list(LINES)
@@ -173,7 +182,13 @@ def examples(n=24000, seed=1):
         # openers only go on the general lines, which don't mention the time of day themselves
         if tod in TOD_OPENERS and sit in ("ok", "streak") and line in LINES[sit] and rng.random() < 0.2:
             line = rng.choice(TOD_OPENERS[tod]) + " " + line
-        out.append((prompt(sit, tod, amt), line))
+        copies = (weights or {}).get((sit, line), 1)
+        for _ in range(30):   # redraw while the line is one you rated Bad
+            if copies:
+                break
+            line = rng.choice(pool)
+            copies = weights.get((sit, line), 1)
+        out += [(prompt(sit, tod, amt), line)] * max(copies, 1)
     return out
 
 
