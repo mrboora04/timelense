@@ -14,6 +14,7 @@ import torch.nn.functional as F
 
 sys.path.insert(0, os.path.dirname(__file__))
 import data
+import pairs as wordpairs   # word pairs for the garbled-line check in talk.js
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 # Same pattern as LENS_TOKEN_RE in talk.js. Each token keeps its leading space, so joining tokens
@@ -126,7 +127,7 @@ def quantize(model):
 def write_bin(path, model, itos, tensors):
     """LENS, u32 header size, JSON header, then each tensor (padded to 4 bytes):
        matrix = float32 row scales + int8 rows; vector = float32"""
-    header = json.dumps({"cfg": model.cfg, "vocab": itos, "slots": data.SLOTS,
+    header = json.dumps({"cfg": model.cfg, "vocab": itos, "slots": data.SLOTS, "pairs": wordpairs.pairs(),
                          "tensors": [[n, shape, s is not None] for n, shape, s, _ in tensors]}).encode()
     header += b" " * (-len(header) % 4)
     with open(path, "wb") as f:

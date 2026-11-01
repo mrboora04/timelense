@@ -27,7 +27,10 @@ GUARDS = [("more than yesterday", 0, "more"), ("less than yesterday", 0, "less")
 
 
 def fits(text, vs, dr):
-    return all((vs, dr)[i] == want for phrase, i, want in GUARDS if phrase in text.lower())
+    low = text.lower()
+    if "yesterday" in low and not any(p in low for p, _, _ in GUARDS[:3]):
+        return False   # "yesterday" only in the three exact forms above
+    return all((vs, dr)[i] == want for phrase, i, want in GUARDS if phrase in low)
 
 LINES = {
     "idle": [
@@ -165,7 +168,7 @@ HIST_LINES = {
     ("ok", "vs", "less"): ["{total} today, less than yesterday so far.", "A lighter one so far, less than yesterday: {total}.",
                           "Less than yesterday at this time. {total} in."],
     ("ok", "vs", "same"): ["{total} today, about the same as yesterday.", "Right about the same as yesterday: {total} so far.",
-                          "Same pace as yesterday. {total} in."],
+                          "About the same as yesterday so far. {total} in."],
     ("ok", "dr", "none"): ["{total} today and no detours so far. Lovely.", "No detours so far, {total} in.",
                           "Smooth so far: {total} and no detours."],
     ("ok", "dr", "some"): ["{total} today, with a detour or two. Nothing big.", "A detour or two so far, and {total} in. All fine."],
@@ -176,6 +179,25 @@ HIST_LINES = {
 # lines that name the site most of today went to
 TOP_LINES = {"ok": ["{top} is where most of today went: {total}.", "Mostly {top} so far today. {total} in total.",
                     "{top} leads today. {total} overall."]}
+# Questions and encouragement, from the ratings: plain status lines ("Steady day: {total}") were
+# rated Bad about half the time. Questions are kind and open (research or real drift? what's next?)
+# and never judge; encouragement names the effort, not a rule.
+ASK_LINES = {
+    "start": ["Started on {site}. Is it for your work today, or a break?", "{site} first today. Planned, or just where you ended up?",
+              "You opened with {site}. What are you hoping to get from it?", "{site} for {dur}. Is this the plan, or a detour?"],
+    "drift": ["Quick detour from {from}. Was it related, or a breather?", "Away from {from}. Anything you need from there, or just a pause?",
+              "Was that detour useful, or ready to head back to {from}?", "Taking a break from {from}? A few minutes is fine."],
+    "drift_long": ["{dur} on {site}. Was it research for {from}, or a real detour?", "Was {site} part of the work, or did it pull you away from {from}?",
+                   "{dur} since {from}. Anything worth keeping from {site}?", "Did {site} help with {from}, or is it time to head back?"],
+    "doom": ["{dur} on {sites}. Was that research, or real scrolling?", "Was {sites} for something you needed, or just habit?",
+             "{dur} of {sites}. Studying, or scrolling?", "What is {sites} giving you right now? A rest is a fine answer."],
+    "streak": ["{dur} of focus. That is how big things get built.", "{dur} in. You're building something real.",
+               "Momentum! {dur} and counting.", "{dur} deep. Keep that flow going.", "That's {dur} you gave to what matters. Proud of that."],
+    "ok": ["What is the one thing you want done today?", "{total} in. What's next on your list?", "Small steps count. {total} so far.",
+           "Whatever you're working on, a bit more progress today is a win.", "What would make today a good day?",
+           "Ready for a focused block? Pick one thing."],
+    "hello": ["Good to see you. What's the plan for today?", "New day. What's one thing you want to finish?"],
+}
 # short openers that can go in front of a line at that time of day
 TOD_OPENERS = {"morning": ["Morning!"], "evening": ["Evening!"], "night": ["Late one."]}
 
@@ -207,6 +229,7 @@ def examples(n=24000, seed=1, weights=None):
         pool += HIST_LINES.get((sit, "vs", vs), []) * 3
         pool += HIST_LINES.get((sit, "dr", dr), []) * 3
         pool += TOP_LINES.get(sit, [])
+        pool += ASK_LINES.get(sit, []) * 2
         pool += TOD_LINES.get((sit, tod), []) * 3      # weight the specific lines up
         pool += AMT_LINES.get((sit, amt), []) * 3
         line = rng.choice(pool)
@@ -235,5 +258,6 @@ def all_lines(sit):
     """every line written for a situation (for the novelty check)"""
     keys = [k for k in list(TOD_LINES) + list(AMT_LINES) if k[0] == sit]
     extra = [l for k in keys for l in {**TOD_LINES, **AMT_LINES}[k]]
-    hist = [l for k, ls in HIST_LINES.items() if k[0] == sit for l in ls] + TOP_LINES.get(sit, [])
+    hist = ([l for k, ls in HIST_LINES.items() if k[0] == sit for l in ls]
+            + TOP_LINES.get(sit, []) + ASK_LINES.get(sit, []))
     return set(LINES[sit] + extra + hist)

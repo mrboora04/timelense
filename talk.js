@@ -25,7 +25,7 @@ function lensModel(buf) {
       off += rows * 4;
     }
   }
-  return { ...head, w, stoi: Object.fromEntries(head.vocab.map((t, i) => [t, i])) };
+  return { ...head, w, stoi: Object.fromEntries(head.vocab.map((t, i) => [t, i])), pairs: head.pairs && new Set(head.pairs) };
 }
 
 function lensMatVec(m, x, bias) {
@@ -101,6 +101,16 @@ function lensValid(text, allowed) {
   return text.length > 0 && text.length <= LENS_MAX_CHARS && !/\n/.test(text) && /[.!?]$/.test(text)
     && /^[A-Z{]/.test(text) && slots.every(s => allowed.includes(s)) && new Set(slots).size === slots.length;
 }
+/* Garbled-line check: the model sometimes glues the start of one line to the end of another
+   ("{dur} of focus streak of the clock."). Every pair of neighbouring words must be one that
+   meets in the training lines (lens.bin's "pairs", from model/pairs.py; ^ and $ mark the ends).
+   A model without the list lets every line through. */
+const LENS_WORD = /\{[a-z]+\}|[a-z0-9']+/g;   // same as WORD in model/pairs.py
+function lensKnown(text, pairs) {
+  if (!pairs) return true;
+  const w = ["^", ...(text.toLowerCase().match(LENS_WORD) || []), "$"];
+  return w.slice(1).every((b, i) => pairs.has(w[i] + " " + b));
+}
 const lensFill = (text, slots) => text.replace(/\{([a-z]+)\}/g, (_, k) => slots[k] ?? "");
 /* A line that mentions the history must match it: "more than yesterday" only when today is more.
    Same list as GUARDS in model/data.py (a test keeps them equal). */
@@ -108,7 +118,9 @@ const LENS_GUARDS = [["more than yesterday", 0, "more"], ["less than yesterday",
   ["no detours so far", 1, "none"], ["detour or two", 1, "some"], ["few detours", 1, "many"]];
 function lensFits(text, prompt) {
   const history = prompt.replace(/[<>]/g, "").split(" ").slice(3);   // [today vs yesterday, drifts today]
-  return LENS_GUARDS.every(([phrase, i, want]) => !text.toLowerCase().includes(phrase) || history[i] === want);
+  const low = text.toLowerCase();
+  if (low.includes("yesterday") && !LENS_GUARDS.slice(0, 3).some(([phrase]) => low.includes(phrase))) return false;   // only the three exact forms
+  return LENS_GUARDS.every(([phrase, i, want]) => !low.includes(phrase) || history[i] === want);
 }
 function lensPrompt(m, hour = new Date().getHours()) {
   const tod = hour < 5 ? "night" : hour < 12 ? "morning" : hour < 17 ? "afternoon" : hour < 22 ? "evening" : "night";
@@ -135,15 +147,16 @@ function lensScores(votes = []) {
    yet, when the model writes one. */
 function lensWrite(M, say, prompt, scores, rand = Math.random, prev = null, have = M.slots[say]) {
   const allowed = M.slots[say].filter(s => have.includes(s));   // slots with a live value right now
-  let best = null, top = -Infinity, again = null;
-  for (let i = 0; i < 12; i++) {
+  let best = null, top = -Infinity, again = null, same = null;
+  for (let i = 0; i < 24; i++) {
     const t = lensGenerate(M, prompt, rand), k = lensKey(say, t), sc = scores[k] || 0;
-    if (!lensValid(t, allowed) || !lensFits(t, prompt) || sc < 0 || t === prev) continue;
+    if (!lensValid(t, allowed) || !lensKnown(t, M.pairs) || !lensFits(t, prompt) || sc < 0) continue;
+    if (t === prev) { same = t; continue; }   // the line just rated comes back only if the model writes nothing else
     if (prev !== null && k in scores) { again = again || t; continue; }
     if (sc > top) { best = t; top = sc; }
     if (best && (prev !== null || top > 0 || i >= 3)) break;   // a liked line is good enough; otherwise try a few more
   }
-  return best || again;
+  return best || again || same;
 }
 /* mascotMood's { mood, text, say, slots, amt } -> { mood, text } with the model's line.
    The line is kept in session storage (memory only), so the popup and side panel show the same

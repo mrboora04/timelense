@@ -46,7 +46,7 @@ async function labNext(choice = "mix", rand = Math.random) {
     const pick = a => a[Math.floor(rand() * a.length)];
     const [vs, dr] = say === "hello" ? ["none", "none"] : [pick(Object.keys(LAB_VS)), pick(Object.keys(LAB_DR))];
     const prompt = `<${say}> <${tod}> <${amt}> <${vs}> <${dr}>`, line = lensGenerate(M, prompt, rand);
-    if (!lensValid(line, M.slots[say]) || !lensFits(line, prompt) || (lab.sample && line === lab.sample.line)
+    if (!lensValid(line, M.slots[say]) || !lensKnown(line, M.pairs) || !lensFits(line, prompt) || (lab.sample && line === lab.sample.line)
         || score[lensKey(say, line)] < 0) continue;
     if (rated.has(line)) repeat = repeat || { say, line, tod, amt, vs, dr, again: true };
     else fresh = { say, line, tod, amt, vs, dr, again: false };

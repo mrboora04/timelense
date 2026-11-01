@@ -1,6 +1,6 @@
 {
   "name": "timelens",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "private": true,
   "description": "Local-only Chrome extension that shows where your browsing time goes and when you drift into doomscrolling.",
   "scripts": {
