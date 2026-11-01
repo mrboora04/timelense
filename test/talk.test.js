@@ -44,7 +44,7 @@ const SITUATIONS = {
   drift: { onSite: true, tracking: true, total: 9000, drift: { from: "github.com", leftAt: 0, secs: 6 * MIN, sites: ["x.com"] } },
   streak: { onSite: true, tracking: true, total: 9000, streak: 40 * MIN },
   hello: { onSite: true, tracking: true, total: 30 },
-  ok: { onSite: true, tracking: true, total: 9000 },
+  ok: { onSite: true, tracking: true, total: 9000, top: "github.com", vs: "more", drifts: 1 },
 };
 
 test("the model knows every situation mascotMood can be in, with the same live values", () => {
@@ -204,4 +204,68 @@ test("rate, rate, rate: every vote is followed at once by a different line, unra
     m = await says(mood(SITUATIONS.ok));
   }
   assert.equal(JSON.parse(JSON.stringify((await ctx.chrome.storage.local.get("lensVotes")).lensVotes)).length, 12);
+});
+
+test("Lens reads your history: today against yesterday, drifts today, the top site", () => {
+  const { run } = load();
+  const vs = run("vsToken"), mood = run("mascotMood"), prompt = run("lensPrompt");
+  assert.equal(vs(null, 9000), "none");
+  assert.equal(vs(300, 9000), "same");        // within 15%
+  assert.equal(vs(3000, 9000), "more");
+  assert.equal(vs(-3000, 9000), "less");
+  const m = mood({ ...SITUATIONS.ok, vs: "less", drifts: 4 });
+  assert.equal(m.vs, "less");
+  assert.equal(m.dr, "many");
+  assert.equal(prompt(m, 20), "<ok> <evening> <usual> <less> <many>");
+  assert.equal(mood({ ...SITUATIONS.ok, drifts: 0 }).dr, "none");
+  assert.equal(mood({ ...SITUATIONS.ok, drifts: 2 }).dr, "some");
+  assert.equal(mood({ ...SITUATIONS.hello, vs: "more", drifts: 5 }).vs, "none", "the first minutes of the day have no history yet");
+  assert.deepEqual(Object.keys(mood({ ...SITUATIONS.ok, top: "" }).slots), ["total"], "no top site, no {top} slot");
+  assert.equal(run("topSite")({ domains: { "a.com": { s: 5 }, "b.com": { s: 50 } } }), "b.com");
+  assert.equal(run("topSite")({ domains: {} }), "");
+});
+
+test("only drifts that started today count", () => {
+  const { run } = load();
+  const now = Date.now(), day = 24 * 3600 * 1000;
+  assert.equal(run("driftsToday")([{ leftAt: now - day * 1.5 }, { leftAt: now - 1000 }, { leftAt: now }]), 2);
+});
+
+test("a line can't claim a history it doesn't have", () => {
+  const { run } = load();
+  const fits = run("lensFits");
+  assert.ok(fits("{total} today, more than yesterday so far.", "<ok> <evening> <usual> <more> <none>"));
+  assert.ok(!fits("{total} today, more than yesterday so far.", "<ok> <evening> <usual> <less> <none>"));
+  assert.ok(!fits("{total} today, more than yesterday so far.", "<ok> <evening> <usual> <none> <none>"), "no yesterday to compare with");
+  assert.ok(!fits("No detours so far, {total} in.", "<ok> <evening> <usual> <same> <many>"));
+  assert.ok(fits("A detour or two so far, and {total} in. All fine.", "<ok> <evening> <usual> <same> <some>"));
+  assert.ok(fits("{total} today.", "<ok> <evening> <usual> <none> <none>"));
+});
+
+test("the JS guard list is the one the model was trained with (model/data.py)", () => {
+  const { run } = load();
+  const py = fs.readFileSync(path.join(__dirname, "..", "model/data.py"), "utf8");
+  const block = py.match(/GUARDS = \[([\s\S]*?)\]\r?\n/)[1];
+  const fromPy = [...block.matchAll(/\("([^"]+)", (\d), "([a-z]+)"\)/g)].map(m => [m[1], Number(m[2]), m[3]]);
+  assert.ok(fromPy.length >= 6);
+  assert.deepEqual(JSON.parse(JSON.stringify(run("LENS_GUARDS"))), fromPy);
+});
+
+test("the model's lines for each history fit it, over many samples", () => {
+  const { ctx, run } = load();
+  const gen = run("lensGenerate"), fits = run("lensFits"), valid = run("lensValid");
+  const rand = seeded(11);
+  let n = 0, ok = 0;
+  for (const vs of ["more", "less", "same", "none"]) {
+    for (const dr of ["none", "some", "many"]) {
+      for (const say of ["ok", "streak"]) {
+        for (let i = 0; i < 6; i++) {
+          const p = `<${say}> <evening> <usual> <${vs}> <${dr}>`, t = gen(ctx.M, p, rand);
+          n++;
+          if (valid(t, ctx.M.slots[say]) && fits(t, p)) ok++;
+        }
+      }
+    }
+  }
+  assert.ok(ok / n >= 0.9, `${ok}/${n} fit`);
 });

@@ -16,9 +16,10 @@ Minimal and black and white. The side panel leads with one number (today's total
 TimeLens records the order you move between sites (`trail`, kept for 2 days). A **drift** is 5+ minutes on distracting sites (Social, Entertainment, News, Shopping), whether you left a focus site (Work, Learning) for it or started the day there. It ends when you're back on a focus site or after a 10-minute break. The side panel shows a strip of today's path and a timeline of each drift: when it started, the chain of sites, how long it lasted, and whether you came back. While a drift is happening, Lens reminds you where you left off. There are no pop-up notifications.
 
 ## Lens's own words
-Lens's one-liners come from a tiny language model trained only on Lens-style lines: a 2-layer GPT with about 37k parameters (d=32), stored as int8 weights in `model/lens.bin` (47 KB). `talk.js` runs it in plain JavaScript (no ONNX Runtime, no WebGPU, no network), right in the popup and side panel.
+Lens's one-liners come from a tiny language model trained only on Lens-style lines: a 2-layer GPT with about 70k parameters (d=48), stored as int8 weights in `model/lens.bin` (88 KB). `talk.js` runs it in plain JavaScript (no ONNX Runtime, no WebGPU, no network), right in the popup and side panel.
 
 - **When it writes:** Lens writes a new line when its situation changes (paused, drifting, a focus streak, and so on) and straight after you rate one, so you can rate line after line in the bubble. The line is kept in session memory, so the popup and side panel agree.
+- **Your history:** besides the situation, the time of day and how big the day is, the model is told how today compares with yesterday at this time (more, less, about the same, or nothing to compare yet) and whether you've had no, a few or many drifts today. It can then say "more than yesterday so far" or "no detours so far". The top site of the day is available to it as `{top}`. This is computed on your PC from the same data the dashboard shows. A line that mentions the history must match it ("more than yesterday" only when today is more), or it is dropped.
 - **Live values:** the model writes slots such as `{site}` and `{dur}`, never real site names or numbers; TimeLens fills them in on every render, so the numbers stay current and the model never sees your data.
 - **Checks:** a line has to be one short sentence (90 characters at most) that uses only the values its situation has. Otherwise, or with no model, Lens uses its usual fixed line.
 - **Rate it:** under the bubble, **Good**, **Bad** and **Skip** rate the line the model just wrote (once per line). A vote keeps only the line's template (like `{dur} of focus. Nice!`, never a site name), the situation and the time of day, in `lensVotes` (last 3000). The side panel shows the tally. **Export data** includes the votes; `python model/votes.py timelens-export-….json` shows the good rate per situation and the lines rated worse than good, to reword in `data.py` before retraining.
@@ -30,7 +31,7 @@ To teach Lens new lines, add them to `model/data.py` and retrain (needs Python 3
 ```bash
 python -m venv model/.venv
 model/.venv/Scripts/python -m pip install torch numpy --index-url https://download.pytorch.org/whl/cpu
-model/.venv/Scripts/python model/train.py --d 32 --heads 2 --steps 3000
+model/.venv/Scripts/python model/train.py --d 48 --heads 4 --steps 3500
 ```
 This rewrites `model/lens.bin` and `model/check.json` (greedy outputs the JS runtime must reproduce in `test/talk.test.js`). `--onnx` also exports `model/out/lens.onnx` and checks it with onnxruntime, for trying the model in other tools.
 

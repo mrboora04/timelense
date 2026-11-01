@@ -1,17 +1,6 @@
 /* TimeLens side-panel dashboard. Reads chrome.storage.local only. */
 let liveBase = null;     // snapshot for the 1s live ticker
 
-/* today's total minus yesterday's by the same time of day, or null without enough data */
-function vsYesterday(v, total) {
-  const yd = new Date(); yd.setDate(yd.getDate() - 1);
-  const y = v[dayKey(yd)];
-  if (!y) return null;
-  /* full hours before now, plus the same fraction of the current hour today has had */
-  const n = new Date(), h = n.getHours();
-  const ySoFar = y.hours.slice(0, h).reduce((a, s) => a + s, 0) + y.hours[h] * n.getMinutes() / 60;
-  return ySoFar >= 60 ? total - ySoFar : null;
-}
-
 /* old background worker still running after an update: say so, and reload in one click */
 function showStale(live) { $("staleNote").hidden = !workerStale(live); }
 $("reloadBtn").onclick = () => chrome.runtime.reload();
@@ -40,7 +29,8 @@ async function render() {
   const now = renderNow($("nowBox"), tab, live, day, cats);
   liveBase = { ...now, total, at: Date.now() };
   const said = await lensSays(mascotMood({ onSite: !!now.domain, tracking: now.tracking, total,
-    drift: drift.ongoing, streak: drift.streak, why: live && live.why, bg: live && live.bg }));
+    drift: drift.ongoing, streak: drift.streak, why: live && live.why, bg: live && live.bg,
+    vs: vsToken(diff, total), drifts: driftsToday(drift.drifts), top: topSite(day) }));
   renderMascot($("mascot"), said);
   renderRate($("mascot"), said);
   $("talkSwitch").setAttribute("aria-checked", String(store.lensTalk !== false));

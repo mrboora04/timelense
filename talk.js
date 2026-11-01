@@ -102,9 +102,17 @@ function lensValid(text, allowed) {
     && /^[A-Z{]/.test(text) && slots.every(s => allowed.includes(s)) && new Set(slots).size === slots.length;
 }
 const lensFill = (text, slots) => text.replace(/\{([a-z]+)\}/g, (_, k) => slots[k] ?? "");
+/* A line that mentions the history must match it: "more than yesterday" only when today is more.
+   Same list as GUARDS in model/data.py (a test keeps them equal). */
+const LENS_GUARDS = [["more than yesterday", 0, "more"], ["less than yesterday", 0, "less"], ["same as yesterday", 0, "same"],
+  ["no detours so far", 1, "none"], ["detour or two", 1, "some"], ["few detours", 1, "many"]];
+function lensFits(text, prompt) {
+  const history = prompt.replace(/[<>]/g, "").split(" ").slice(3);   // [today vs yesterday, drifts today]
+  return LENS_GUARDS.every(([phrase, i, want]) => !text.toLowerCase().includes(phrase) || history[i] === want);
+}
 function lensPrompt(m, hour = new Date().getHours()) {
   const tod = hour < 5 ? "night" : hour < 12 ? "morning" : hour < 17 ? "afternoon" : hour < 22 ? "evening" : "night";
-  return `<${m.say}> <${tod}> <${m.amt}>`;
+  return `<${m.say}> <${tod}> <${m.amt}> <${m.vs || "none"}> <${m.dr || "none"}>`;
 }
 
 let lensLoading = null;   // the model, loaded once per page
@@ -125,11 +133,12 @@ function lensScores(votes = []) {
 /* a valid line for the prompt that your ratings haven't ruled out, or null.
    After a vote, prev is the line just rated: the next one is a different line you haven't rated
    yet, when the model writes one. */
-function lensWrite(M, say, prompt, scores, rand = Math.random, prev = null) {
+function lensWrite(M, say, prompt, scores, rand = Math.random, prev = null, have = M.slots[say]) {
+  const allowed = M.slots[say].filter(s => have.includes(s));   // slots with a live value right now
   let best = null, top = -Infinity, again = null;
   for (let i = 0; i < 12; i++) {
     const t = lensGenerate(M, prompt, rand), k = lensKey(say, t), sc = scores[k] || 0;
-    if (!lensValid(t, M.slots[say]) || sc < 0 || t === prev) continue;
+    if (!lensValid(t, allowed) || !lensFits(t, prompt) || sc < 0 || t === prev) continue;
     if (prev !== null && k in scores) { again = again || t; continue; }
     if (sc > top) { best = t; top = sc; }
     if (best && (prev !== null || top > 0 || i >= 3)) break;   // a liked line is good enough; otherwise try a few more
@@ -149,11 +158,12 @@ async function lensSays(m) {
     if (line === undefined) {
       const M = await lensLoad();
       const { lensVotes } = await chrome.storage.local.get("lensVotes");
-      line = M && M.slots[m.say] ? lensWrite(M, m.say, lensPrompt(m), lensScores(lensVotes), Math.random, said && said.line) : null;
+      line = M && M.slots[m.say] ? lensWrite(M, m.say, lensPrompt(m), lensScores(lensVotes), Math.random, said && said.line,
+        Object.keys(m.slots).filter(k => m.slots[k])) : null;
       await chrome.storage.session.set({ lensSaid: { say: m.say, line } });
     }
     if (!line) return m;
-    return { mood: m.mood, text: lensFill(line, m.slots), rate: { say: m.say, line, amt: m.amt } };
+    return { mood: m.mood, text: lensFill(line, m.slots), rate: { say: m.say, line, amt: m.amt, vs: m.vs, dr: m.dr } };
   } catch { return m; }
 }
 
@@ -165,9 +175,9 @@ async function lensSays(m) {
 const LENS_VOTES = [["1", "Good", "good"], ["-1", "Bad", "bad"], ["0", "Skip", "skip"]];
 const LENS_VOTE_CAP = 3000;
 /* saves one vote and returns its id (the time), which lensUnlog takes to undo it */
-async function lensLog(say, line, tod, amt, v, lab = false) {
+async function lensLog(say, line, tod, amt, v, lab = false, extra = {}) {
   const { lensVotes = [] } = await chrome.storage.local.get("lensVotes");
-  const vote = { t: Date.now(), say, line, tod, amt, v: Number(v) };
+  const vote = { t: Date.now(), say, line, tod, amt, v: Number(v), ...extra };
   if (lab) vote.lab = 1;
   lensVotes.push(vote);
   await chrome.storage.local.set({ lensVotes: lensVotes.slice(-LENS_VOTE_CAP) });
@@ -182,7 +192,7 @@ async function lensVote(rate, v) {
   if (!lensSaid || lensSaid.say !== rate.say || lensSaid.voted) return;
   await chrome.storage.session.set({ lensSaid: { ...lensSaid, voted: true } });
   const tod = lensPrompt({ say: rate.say, amt: rate.amt }).split(" ")[1].slice(1, -1);
-  await lensLog(rate.say, rate.line, tod, rate.amt, v);
+  await lensLog(rate.say, rate.line, tod, rate.amt, v, false, { vs: rate.vs, dr: rate.dr });
 }
 /* shows the row under the bubble when the message has a line to rate, removes it otherwise */
 function renderRate(box, m) {

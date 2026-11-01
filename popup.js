@@ -24,7 +24,8 @@ async function renderPopup() {
   const now = renderNow($("pNow"), tab, live, day, cats);
   liveBase = { ...now, total, at: Date.now() };
   const said = await lensSays(mascotMood({ onSite: !!now.domain, tracking: now.tracking, total,
-    drift: drift.ongoing, streak: drift.streak, why: live && live.why, bg: live && live.bg }));
+    drift: drift.ongoing, streak: drift.streak, why: live && live.why, bg: live && live.bg,
+    vs: vsToken(vsYesterday(store.v1 || {}, total), total), drifts: driftsToday(drift.drifts), top: topSite(day) }));
   renderMascot($("pMascot"), said);
   renderRate($("pMascot"), said);
 }

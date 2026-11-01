@@ -7,7 +7,7 @@ Pipeline: synthetic data (data.py, split 90/5/5) -> word-level tokens -> a small
 (pre-LayerNorm, learned positions, tied output) -> AdamW with warmup + cosine LR and gradient
 clipping -> perplexity and generation checks -> int8 weights for the plain-JS runtime in talk.js.
 """
-import argparse, json, math, os, re, struct, sys
+import argparse, json, math, os, random, re, struct, sys
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -20,18 +20,20 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # gives the text back exactly.
 TOKEN_RE = re.compile(r" ?\{[a-z]+\}| ?[A-Za-z']+| ?[0-9]+| ?[^\sA-Za-z0-9]")
 MAX_CHARS = 90
+N_PROMPT = 5   # situation, time of day, day size, today vs yesterday, drifts today
 
 
 def tokens(text):
     return TOKEN_RE.findall(text)
 
 
-def valid(sit, text):
+def valid(sit, text, vs="none", dr="none"):
     """Same checks as lensValid in talk.js: one short line, only the slots this situation has."""
     slots = re.findall(r"\{([a-z]+)\}", text)
     return (0 < len(text) <= MAX_CHARS and "\n" not in text and text[-1] in ".!?"
             and (text[0].isupper() or text[0] == "{")
-            and all(s in data.SLOTS[sit] for s in slots) and len(slots) == len(set(slots)))
+            and all(s in data.SLOTS[sit] for s in slots) and len(slots) == len(set(slots))
+            and data.fits(text, vs, dr))
 
 
 class Block(nn.Module):
@@ -140,12 +142,12 @@ def write_bin(path, model, itos, tensors):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--d", type=int, default=32)
+    ap.add_argument("--d", type=int, default=48)
     ap.add_argument("--layers", type=int, default=2)
-    ap.add_argument("--heads", type=int, default=2)
-    ap.add_argument("--ctx", type=int, default=32)
-    ap.add_argument("--steps", type=int, default=3000)
-    ap.add_argument("--batch", type=int, default=32)
+    ap.add_argument("--heads", type=int, default=4)
+    ap.add_argument("--ctx", type=int, default=48)
+    ap.add_argument("--steps", type=int, default=3500)
+    ap.add_argument("--batch", type=int, default=48)
     ap.add_argument("--lr", type=float, default=3e-3)
     ap.add_argument("--onnx", action="store_true")
     ap.add_argument("--votes", help="a TimeLens export (side panel > Export data): train toward the lines you rated Good, away from Bad")
@@ -161,7 +163,7 @@ def main():
               f"{sum(w > 1 for w in weights.values())} lines weighted up")
     train, val, test = data.split(data.examples(weights=weights))
     # 2. tokens: prompt tokens, then every word token seen in the lines
-    prompts = [f"<{x}>" for x in [*data.SLOTS, *data.TODS, *data.AMTS]]
+    prompts = [f"<{x}>" for x in dict.fromkeys([*data.SLOTS, *data.TODS, *data.AMTS, *data.VSS, *data.DRS])]
     words = sorted({t for _, l in train + val + test for t in tokens(l)})
     itos = ["<pad>", "<end>", *prompts, *words]
     stoi = {t: i for i, t in enumerate(itos)}
@@ -198,33 +200,37 @@ def main():
         print(f"perplexity (int8): val {math.exp(loss_on(model, Xva, Mva)):.2f}, "
               f"test {math.exp(loss_on(model, Xte, Mte)):.2f}")
     gen = torch.Generator().manual_seed(2)
-    total = ok = novel = 0
+    total = ok = novel = wrong = 0
     seen = set()
+    rng = random.Random(3)
     for sit in data.SLOTS:
-        for tod in data.TODS:
-            for amt in data.AMTS:
-                p = data.prompt(sit, tod, amt)
-                for _ in range(5):
-                    ids = generate(model, [stoi[t] for t in p.split()], stoi["<end>"], gen=gen)
-                    text = "".join(itos[i] for i in ids[3:])
-                    total += 1
-                    ok += valid(sit, text)
-                    novel += text not in data.all_lines(sit) and not any(
-                        text.endswith(" " + l) for l in data.all_lines(sit))
-                    seen.add(text)
+        for _ in range(60):   # random combinations of time of day, day size, history
+            tod, amt, vs, dr = rng.choice(data.TODS), rng.choice(data.AMTS), rng.choice(data.VSS), rng.choice(data.DRS)
+            if sit == "hello":
+                amt, vs, dr = "light", "none", "none"
+            p = data.prompt(sit, tod, amt, vs, dr)
+            ids = generate(model, [stoi[t] for t in p.split()], stoi["<end>"], gen=gen)
+            text = "".join(itos[i] for i in ids[N_PROMPT:])
+            total += 1
+            ok += valid(sit, text, vs, dr)
+            wrong += not data.fits(text, vs, dr)
+            novel += text not in data.all_lines(sit) and not any(
+                text.endswith(" " + l) for l in data.all_lines(sit))
+            seen.add(text)
         print(f"  {sit:10} {text}")
-    print(f"generation: {ok}/{total} valid, {len(seen)} different, {novel} not in the training lines")
+    print(f"generation: {ok}/{total} valid, {wrong} contradicting the history, {len(seen)} different, "
+          f"{novel} not in the training lines")
 
     # 6. export for talk.js, plus greedy outputs the JS tests must reproduce
     write_bin(os.path.join(HERE, "lens.bin"), model, itos, tensors)
     check = []
     for sit in data.SLOTS:
-        p = data.prompt(sit, "afternoon", "usual")
+        p = data.prompt(sit, "afternoon", "usual", "same", "some")
         ids = [stoi[t] for t in p.split()]
         with torch.no_grad():
             first = model(torch.tensor([ids]))[0, -1][:8].tolist()
         out = generate(model, ids, stoi["<end>"], greedy=True)
-        check.append({"prompt": p, "text": "".join(itos[i] for i in out[3:]), "logits": first})
+        check.append({"prompt": p, "text": "".join(itos[i] for i in out[N_PROMPT:]), "logits": first})
     with open(os.path.join(HERE, "check.json"), "w") as f:
         json.dump(check, f, indent=1)
     print(f"wrote model/lens.bin ({os.path.getsize(os.path.join(HERE, 'lens.bin')) / 1024:.1f} KB)")

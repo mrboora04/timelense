@@ -18,7 +18,9 @@ const LAB_WHEN = {
   hello: "the first minutes of the day",
   ok: "an ordinary day, nothing to flag",
 };
-const LAB_EXAMPLE = { site: "youtube.com", dur: "18m", from: "github.com", at: "2:15 PM",
+const LAB_VS = { more: "more than yesterday so far", less: "less than yesterday so far", same: "about the same as yesterday", none: "nothing to compare with yet" };
+const LAB_DR = { none: "no drifts yet today", some: "a drift or two today", many: "several drifts today" };
+const LAB_EXAMPLE = { top: "youtube.com", site: "youtube.com", dur: "18m", from: "github.com", at: "2:15 PM",
   sites: "youtube.com, reddit.com", total: "2h 10m", why: "screen locked" };
 const LAB_AMT_WORDS = { light: "a light day", usual: "a usual day", heavy: "a heavy day" };
 const lab = { sample: null, prev: null, busy: false };
@@ -41,10 +43,13 @@ async function labNext(choice = "mix", rand = Math.random) {
   for (let i = 0; i < 40 && !fresh; i++) {
     const tod = LAB_TODS[Math.floor(rand() * LAB_TODS.length)];
     const amt = say === "hello" ? "light" : LAB_AMTS[Math.floor(rand() * LAB_AMTS.length)];
-    const line = lensGenerate(M, `<${say}> <${tod}> <${amt}>`, rand);
-    if (!lensValid(line, M.slots[say]) || (lab.sample && line === lab.sample.line) || score[lensKey(say, line)] < 0) continue;
-    if (rated.has(line)) repeat = repeat || { say, line, tod, amt, again: true };
-    else fresh = { say, line, tod, amt, again: false };
+    const pick = a => a[Math.floor(rand() * a.length)];
+    const [vs, dr] = say === "hello" ? ["none", "none"] : [pick(Object.keys(LAB_VS)), pick(Object.keys(LAB_DR))];
+    const prompt = `<${say}> <${tod}> <${amt}> <${vs}> <${dr}>`, line = lensGenerate(M, prompt, rand);
+    if (!lensValid(line, M.slots[say]) || !lensFits(line, prompt) || (lab.sample && line === lab.sample.line)
+        || score[lensKey(say, line)] < 0) continue;
+    if (rated.has(line)) repeat = repeat || { say, line, tod, amt, vs, dr, again: true };
+    else fresh = { say, line, tod, amt, vs, dr, again: false };
   }
   return fresh || repeat;
 }
@@ -57,7 +62,7 @@ async function labPaint() {
   const s = lab.sample, off = !s;
   $("labLine").textContent = s ? lensFill(s.line, LAB_EXAMPLE) : "Lens's model couldn't load, so there's nothing to rate.";
   $("labWhen").textContent = s
-    ? `When ${LAB_WHEN[s.say]} · ${s.tod} · ${LAB_AMT_WORDS[s.amt]}${s.again ? " · you've rated every line Lens has written here" : ""}`
+    ? `When ${LAB_WHEN[s.say]} · ${s.tod} · ${LAB_AMT_WORDS[s.amt]}${s.say === "hello" ? "" : ` · ${LAB_VS[s.vs]} · ${LAB_DR[s.dr]}`}${s.again ? " · you've rated every line Lens has written here" : ""}`
     : "";
   for (const b of document.querySelectorAll("#labRate [data-v]")) b.disabled = off;
   $("labUndo").hidden = !lab.prev;
@@ -73,7 +78,7 @@ async function labVoteNow(v) {
   if (!s || lab.busy) return;
   lab.busy = true;
   try {
-    lab.prev = { t: await lensLog(s.say, s.line, s.tod, s.amt, v, true), sample: s };
+    lab.prev = { t: await lensLog(s.say, s.line, s.tod, s.amt, v, true, { vs: s.vs, dr: s.dr }), sample: s };
     await labShow();
   } finally { lab.busy = false; }
 }

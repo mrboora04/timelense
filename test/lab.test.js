@@ -64,7 +64,7 @@ test("once every line has been rated, it says so and keeps going", async () => {
   const { run } = load();
   const M = await run("lensLoad")(), gen = run("lensGenerate"), valid = run("lensValid"), rand = seeded(1);
   const all = new Set();
-  for (let i = 0; i < 600; i++) { const t = gen(M, "<bg> <afternoon> <usual>", rand); if (valid(t, M.slots.bg)) all.add(t); }
+  for (let i = 0; i < 600; i++) { const t = gen(M, "<bg> <afternoon> <usual> <none> <none>", rand); if (valid(t, M.slots.bg)) all.add(t); }
   const lens = load({ local: { lensVotes: [...all].map(line => ({ t: 1, say: "bg", line, tod: "night", amt: "light", v: 1 })) } });
   const s = await lens.run("labNext")("bg", seeded(2));
   assert.equal(s.again, true);

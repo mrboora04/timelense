@@ -1,7 +1,7 @@
 """Synthetic training data for Lens's one-liners.
 
 Each example is a prompt (Lens's situation, the time of day, how much of the day has gone to
-browsing) and one line Lens could say. Lines carry slots such as {site} and {dur} instead of
+browsing, today against yesterday, and how many drifts today) and one line Lens could say. Lines carry slots such as {site} and {dur} instead of
 real names and numbers: the extension fills them with live values, so the model never needs to
 learn site names and its lines stay correct as the numbers tick.
 
@@ -15,10 +15,19 @@ import random
 SLOTS = {
     "idle": [], "paused": ["why"], "bg": [], "doom": ["dur", "sites", "at"], "start": ["site", "dur"],
     "drift_long": ["from", "at", "dur", "site"], "drift": ["from"], "streak": ["dur"],
-    "hello": [], "ok": ["total"],
+    "hello": [], "ok": ["total", "top"],
 }
 TODS = ["morning", "afternoon", "evening", "night"]
 AMTS = ["light", "usual", "heavy"]
+VSS = ["more", "less", "same", "none"]   # today against yesterday at this time; none = nothing to compare
+DRS = ["none", "some", "many"]           # drifts so far today: 0, 1-2, 3+
+# A line that says one of these must match the prompt, or it is never shown (talk.js has the same list).
+GUARDS = [("more than yesterday", 0, "more"), ("less than yesterday", 0, "less"), ("same as yesterday", 0, "same"),
+          ("no detours so far", 1, "none"), ("detour or two", 1, "some"), ("few detours", 1, "many")]
+
+
+def fits(text, vs, dr):
+    return all((vs, dr)[i] == want for phrase, i, want in GUARDS if phrase in text.lower())
 
 LINES = {
     "idle": [
@@ -149,12 +158,30 @@ AMT_LINES = {
     ("doom", "heavy"): ["Long day, and {dur} on {sites}. You've earned a real break."],
     ("streak", "heavy"): ["{dur} of focus on a long day. Well done."],
 }
+# lines that need the user's history: (situation, signal, value) -> lines, used only with that signal
+HIST_LINES = {
+    ("ok", "vs", "more"): ["{total} today, more than yesterday so far.", "A bit more than yesterday at this time: {total}.",
+                          "{total} so far, more than yesterday. Just noting it."],
+    ("ok", "vs", "less"): ["{total} today, less than yesterday so far.", "A lighter one so far, less than yesterday: {total}.",
+                          "Less than yesterday at this time. {total} in."],
+    ("ok", "vs", "same"): ["{total} today, about the same as yesterday.", "Right about the same as yesterday: {total} so far.",
+                          "Same pace as yesterday. {total} in."],
+    ("ok", "dr", "none"): ["{total} today and no detours so far. Lovely.", "No detours so far, {total} in.",
+                          "Smooth so far: {total} and no detours."],
+    ("ok", "dr", "some"): ["{total} today, with a detour or two. Nothing big.", "A detour or two so far, and {total} in. All fine."],
+    ("ok", "dr", "many"): ["{total} today, with a few detours. It happens.", "A few detours so far. {total} in, and still a lot of day left."],
+    ("streak", "dr", "none"): ["{dur} of focus and no detours so far today. Great.", "{dur} straight, no detours so far. Lovely."],
+    ("streak", "dr", "many"): ["{dur} of focus after a few detours today. Nice comeback!", "A few detours earlier, and now {dur} of focus. Good one."],
+}
+# lines that name the site most of today went to
+TOP_LINES = {"ok": ["{top} is where most of today went: {total}.", "Mostly {top} so far today. {total} in total.",
+                    "{top} leads today. {total} overall."]}
 # short openers that can go in front of a line at that time of day
 TOD_OPENERS = {"morning": ["Morning!"], "evening": ["Evening!"], "night": ["Late one."]}
 
 
-def prompt(sit, tod, amt):
-    return f"<{sit}> <{tod}> <{amt}>"
+def prompt(sit, tod, amt, vs="none", dr="none"):
+    return f"<{sit}> <{tod}> <{amt}> <{vs}> <{dr}>"
 
 
 def vote_weights(votes):
@@ -175,7 +202,11 @@ def examples(n=24000, seed=1, weights=None):
         sit = sits[i % len(sits)]
         tod = rng.choice(TODS)
         amt = "light" if sit == "hello" else rng.choice(AMTS)
+        vs, dr = ("none", "none") if sit == "hello" else (rng.choice(VSS), rng.choice(DRS))
         pool = list(LINES[sit])
+        pool += HIST_LINES.get((sit, "vs", vs), []) * 3
+        pool += HIST_LINES.get((sit, "dr", dr), []) * 3
+        pool += TOP_LINES.get(sit, [])
         pool += TOD_LINES.get((sit, tod), []) * 3      # weight the specific lines up
         pool += AMT_LINES.get((sit, amt), []) * 3
         line = rng.choice(pool)
@@ -188,7 +219,7 @@ def examples(n=24000, seed=1, weights=None):
                 break
             line = rng.choice(pool)
             copies = weights.get((sit, line), 1)
-        out += [(prompt(sit, tod, amt), line)] * max(copies, 1)
+        out += [(prompt(sit, tod, amt, vs, dr), line)] * max(copies, 1)
     return out
 
 
@@ -204,4 +235,5 @@ def all_lines(sit):
     """every line written for a situation (for the novelty check)"""
     keys = [k for k in list(TOD_LINES) + list(AMT_LINES) if k[0] == sit]
     extra = [l for k in keys for l in {**TOD_LINES, **AMT_LINES}[k]]
-    return set(LINES[sit] + extra)
+    hist = [l for k, ls in HIST_LINES.items() if k[0] == sit for l in ls] + TOP_LINES.get(sit, [])
+    return set(LINES[sit] + extra + hist)

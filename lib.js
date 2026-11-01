@@ -62,7 +62,7 @@ const CAT_KEYS = ["catList", "catMap", "catAlias"];
 /* Bump with every change. Chrome reloads the dashboard's files from disk on their own, but
    keeps running the old background worker until the extension is reloaded; the pages
    compare this number with the worker's to notice that and offer a reload. */
-const TL_BUILD = 184;
+const TL_BUILD = 190;
 
 const pad = n => String(n).padStart(2, "0");
 function dayKey(d = new Date()) {
@@ -264,10 +264,41 @@ function blockReason(domain, { limits = {}, focus, cats, day }, now = Date.now()
 function timeOf(ms) {
   return new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
-/* What Lens (the mascot) looks like and says. Plain text; the UI escapes it. */
-function mascotMood({ onSite, tracking, total, drift, streak, why, bg }) {
+/* today's total minus yesterday's by the same time of day, or null without enough data */
+function vsYesterday(v, total) {
+  const yd = new Date(); yd.setDate(yd.getDate() - 1);
+  const y = v[dayKey(yd)];
+  if (!y) return null;
+  /* full hours before now, plus the same fraction of the current hour today has had */
+  const n = new Date(), h = n.getHours();
+  const ySoFar = y.hours.slice(0, h).reduce((a, s) => a + s, 0) + y.hours[h] * n.getMinutes() / 60;
+  return ySoFar >= 60 ? total - ySoFar : null;
+}
+/* Lens's view of that: "more" or "less" than yesterday so far, "same" within 15% (or 10 minutes), "none" without data */
+function vsToken(diff, total) {
+  if (diff === null) return "none";
+  return Math.abs(diff) < Math.max(600, total * 0.15) ? "same" : diff > 0 ? "more" : "less";
+}
+/* the site most of the day went to ("" for an empty day) */
+function topSite(day) {
+  const top = Object.entries(day.domains).sort((a, b) => b[1].s - a[1].s)[0];
+  return top ? top[0] : "";
+}
+/* how many of the drifts started today */
+function driftsToday(drifts) {
+  const from = new Date().setHours(0, 0, 0, 0);
+  return drifts.filter(d => d.leftAt >= from).length;
+}
+/* What Lens (the mascot) looks like and says. Plain text; the UI escapes it.
+   say names the situation and slots hold its live values, for Lens's own words (talk.js), with
+   amt (how big the day is), vs (today against yesterday: more/less/same/none) and dr (drifts so
+   far today: none/some/many) as its context; text is the fixed line used when those are off or
+   unavailable. vs, drifts (a count) and top (the top site) come from the caller's history. */
+function mascotMood({ onSite, tracking, total, drift, streak, why, bg, vs = "none", drifts = 0, top = "" }) {
   const amt = total < 3600 ? "light" : total < 4 * 3600 ? "usual" : "heavy";
-  const say = (mood, key, slots, text) => ({ mood, text, say: key, slots, amt });
+  const dr = drifts === 0 ? "none" : drifts < 3 ? "some" : "many";
+  const say = (mood, key, slots, text) =>
+    ({ mood, text, say: key, slots, amt, vs: key === "hello" ? "none" : vs, dr: key === "hello" ? "none" : dr });
   if (!onSite) return say("happy", "idle", {}, "Open a website and I'll start counting.");
   if (!tracking) {
     why = why || "waiting for activity";
@@ -293,7 +324,7 @@ function mascotMood({ onSite, tracking, total, drift, streak, why, bg }) {
   }
   if (streak >= 25 * 60) return say("proud", "streak", { dur: fmt(streak) }, `${fmt(streak)} of focus in a row. Nice!`);
   if (total < 120) return say("wave", "hello", {}, "Hi, I'm Lens! I'll keep an eye on where your time goes.");
-  return say("happy", "ok", { total: fmt(total) }, `All good. ${fmt(total)} browsed today.`);
+  return say("happy", "ok", { total: fmt(total), ...(top && { top }) }, `All good. ${fmt(total)} browsed today.`);
 }
 
 function fmt(s) {
